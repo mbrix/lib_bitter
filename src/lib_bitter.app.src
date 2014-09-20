@@ -1,0 +1,14 @@
+{application, lib_bitter,
+ [
+  {description, "Low level Bitcoin protocol support library"},
+  {vsn, "1"},
+  {registered, []},
+  {applications, [
+                  kernel,
+                  stdlib,
+                  base58,
+                  jiffy
+                 ]},
+  {mod, { lib_bitter, []}},
+  {env, []}
+ ]}.

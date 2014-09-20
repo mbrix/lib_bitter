@@ -1,0 +1,17 @@
+{
+  "source_addresses": [
+    "3LT1JUt54hEnqZERBf3r1HLpNMQTqCbwEa"
+  ],
+  "contract_url": "https://www.coinprism.info/asset/3LT1JUt54hEnqZERBf3r1HLpNMQTqCbwEa",
+  "name_short": "bltest",
+  "name": "blahtest",
+  "issuer": "Me",
+  "description": "this is a test coin",
+  "description_mime": "text/x-markdown; charset=UTF-8",
+  "type": "Currency",
+  "divisibility": 3,
+  "link_to_website": false,
+  "icon_url": null,
+  "image_url": null,
+  "version": "1.0"
+}
