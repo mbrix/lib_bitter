@@ -28,7 +28,7 @@
 -author('mbranton@emberfinancial.com').
 
 
--include_lib("../src/bitter.hrl").
+-include_lib("../include/bitter.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
 

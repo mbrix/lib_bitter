@@ -33,7 +33,7 @@
 % Fake Utxo creates a dictionary utxo for loading
 % test data.
 
--include_lib("../src/bitter.hrl").
+-include_lib("../include/bitter.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
 start() ->
