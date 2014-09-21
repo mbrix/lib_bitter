@@ -39,5 +39,3 @@ hashes(Block) when is_record(Block, bbdef) ->
 	Block#bbdef{txdata=hashes(Block#bbdef.txdata)};
 hashes(TxData) when is_list(TxData)->
 	lists:map(fun(E) -> #btxdef{txhash=E#btxdef.txhash} end, TxData).
-
-
