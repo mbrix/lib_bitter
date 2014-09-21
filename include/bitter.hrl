@@ -120,6 +120,9 @@
 -define(INV_TX, <<1:32/little>>).
 -define(INV_BLOCK, <<2:32/little>>).
 
+% Block Sequence / Concurrent slow consumers
+-record(bitter_seq, {num, direction, blockhash}).
+
 % Script OP Codes
 % push values
 -define(OP_0, 16#00). %0
