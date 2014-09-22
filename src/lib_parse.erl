@@ -56,12 +56,12 @@ parse_tx(TxData) ->
 	[T, _] = getTransactions(1, TxData),
 	T.
 
-extractLoop(Data, CallBackFun) -> extractLoop(Data, 1000000, CallBackFun).
+extractLoop(Data, CallBackFun) -> extractLoop(Data, 10000000, CallBackFun).
 extractLoop(_, 0, _) -> ok;
 extractLoop(Data, Loops, CallBackFun) ->
 	case extract(Data) of
 		{ok, Block2, Next} ->
-			   CallBackFun(Block2, disk),
+			   CallBackFun(Block2),
 			   extractLoop(Next, Loops-1, CallBackFun);
 		{scan, Next} ->
 			<<_:8, Bin/binary>> = Next,

@@ -28,7 +28,7 @@
 -author('mbranton@emberfinancial.com').
 
 -behaviour(application).
--export([start/0, start/2, stop/1]).
+-export([start/0, start/2, stop/0, stop/1]).
 
 -behaviour(supervisor).
 -export([init/1]).
@@ -38,6 +38,8 @@ start() ->
 
 start(_, _) ->
  supervisor:start_link({local,?MODULE},?MODULE,[]).
+
+stop() -> application:stop(lib_bitter).
 
 stop(_) -> ok.
 
