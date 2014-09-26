@@ -33,9 +33,22 @@
 -include_lib("lib_bitter/include/bitter.hrl").
 
 header(Block) when is_record(Block, bbdef) ->
-	Block#bbdef{txdata=[]}.
+	#bbdef{network=Block#bbdef.network,
+		   blockhash=binary:copy(Block#bbdef.blockhash),
+		   headerlength=Block#bbdef.headerlength,
+		   version=Block#bbdef.version,
+		   previoushash=binary:copy(Block#bbdef.previoushash),
+		   merkleroot=binary:copy(Block#bbdef.merkleroot),
+		   timestamp=Block#bbdef.timestamp,
+		   difficulty=Block#bbdef.difficulty,
+		   nonce=Block#bbdef.nonce,
+		   txcount=Block#bbdef.txcount,
+		   e_sumdiff=Block#bbdef.e_sumdiff,
+		   e_height=Block#bbdef.e_height,
+		   e_next=Block#bbdef.e_next,
+		   txdata=[]}.
 
 hashes(Block) when is_record(Block, bbdef) ->
 	Block#bbdef{txdata=hashes(Block#bbdef.txdata)};
 hashes(TxData) when is_list(TxData)->
-	lists:map(fun(E) -> #btxdef{txhash=E#btxdef.txhash} end, TxData).
+	lists:map(fun(E) -> #btxdef{txhash=binary:copy(E#btxdef.txhash)} end, TxData).
