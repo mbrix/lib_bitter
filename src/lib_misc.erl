@@ -27,7 +27,8 @@
 -module(lib_notify).
 -author('mbranton@emberfinancial.com').
 
--export([connect_nodes/1]).
+-export([connect_nodes/1,
+	     get_best_pid/1]).
 
 %%% Connect functions
 
@@ -54,6 +55,6 @@ get_best_pid(Group) ->
                         end, Members),
    case lists:keysort(2, Members1) of
      [{Pid, _} | _] -> Pid;
-     [] -> not_found
+     [] -> {error, empty_process_group}
    end.
 
