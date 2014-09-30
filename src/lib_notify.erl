@@ -27,7 +27,8 @@
 -module(lib_notify).
 -author('mbranton@emberfinancial.com').
 
--export([connect_nodes/1]).
+-export([connect_nodes/1,
+	get_best_pid/1]).
 
 %%% Connect functions
 
@@ -41,4 +42,19 @@ connect_nodes(NodeList) when is_list(NodeList) ->
 
 connect_node(Node) ->
 	true = net_kernel:connect_node(Node).
+
+%% Pid identity functions
+
+get_best_pid(Group) ->
+  Members = pg2:get_members(Group),
+  Members1 = lists:map(fun(Pid) ->
+      [{message_queue_len, Messages}] =
+            erlang:process_info(Pid,
+                [message_queue_len]),
+                {Pid, Messages}
+            end, Members),
+   case lists:keysort(2, Members1) of
+     [{Pid, _} | _] -> Pid;
+     [] -> {error, empty_process_group}
+   end.
 
