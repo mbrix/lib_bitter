@@ -76,16 +76,18 @@ near(Mod) ->
     end.
 
 fast(Mod) ->
-	case get_best_pid(Mod) of
+	P = case get_best_pid(Mod) of
 		{error, empty_process_group} -> throw(pid_missing);
 		pid -> pid
-	end.
+	end,
+	P.
 
 random(Mod) ->
 	Pids = pg2:get_members(Mod),
-    case Pids of 
+    P = case Pids of 
         [] -> throw(pid_missing);
          _  -> lists:nth(random:uniform(length(Pids)), Pids)
-    end.
+    end,
+    P.
 
 
