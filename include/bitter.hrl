@@ -37,6 +37,7 @@
 -define(MARKER, <<-1:256>>).
 
 -define(WHERE, lib_notify:where(Pid, ?MODULE)).
+-define(WHEREBLOCKD, lib_notify:where(Pid, bitter_blockd)).
 
 % Expanded to nclude cumulative fields
 -record(bbdef, {network,
