@@ -77,7 +77,7 @@ near(Mod) ->
 
 fast(Mod) ->
 	case get_best_pid(Mod) of
-		{error, empty_process_group} -> throw(pid_missing);
+		{error, _} -> throw(pid_missing);
 		Pid -> Pid
 	end.
 
