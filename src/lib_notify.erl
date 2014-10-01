@@ -72,6 +72,7 @@ near(Mod) ->
 	P = pg2:get_closest_pid(Mod),
     case P of 
         [] -> throw(pid_missing);
+        {error, _} -> throw(pid_missing);
         Pid -> Pid
     end.
 
@@ -84,6 +85,7 @@ fast(Mod) ->
 random(Mod) ->
 	Pids = pg2:get_members(Mod),
     case Pids of 
+        {error, _} -> throw(pid_missing);
         [] -> throw(pid_missing);
          _  -> lists:nth(random:uniform(length(Pids)), Pids)
     end.
