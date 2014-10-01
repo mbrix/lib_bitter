@@ -31,7 +31,8 @@
          get_best_pid/1,
          near/1,
          fast/1,
-         random/1]).
+         random/1,
+         where/2]).
 
 %%% Connect functions
 
@@ -60,6 +61,11 @@ get_best_pid(Group) ->
      [{Pid, _} | _] -> Pid;
      [] -> {error, empty_process_group}
    end.
+
+where(near, Mod) -> near(Mod);
+where(fast, Mod) -> fast(Mod);
+where(random, Mod) -> random(Mod);
+where(Pid, _Mod) -> Pid.
 
 %% Location
 near(Mod) ->
