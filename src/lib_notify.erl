@@ -45,7 +45,7 @@ connect_nodes(NodeList) when is_list(NodeList) ->
 	connect_nodes(T).
 
 connect_node(Node) ->
-	true = net_kernel:connect_node(Node).
+    net_kernel:connect_node(Node).
 
 %% Pid identity functions
 
