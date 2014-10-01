@@ -28,7 +28,10 @@
 -author('mbranton@emberfinancial.com').
 
 -export([connect_nodes/1,
-	get_best_pid/1]).
+         get_best_pid/1,
+         near/1,
+         fast/1,
+         random/1]).
 
 %%% Connect functions
 
@@ -57,4 +60,26 @@ get_best_pid(Group) ->
      [{Pid, _} | _] -> Pid;
      [] -> {error, empty_process_group}
    end.
+
+%% Location
+near(Mod) ->
+	P = pg2:get_closest_pid(Mod),
+    case P of 
+        [] -> throw(pid_missing);
+        Pid -> Pid
+    end.
+
+fast(Mod) ->
+	case get_best_pid(Mod) of
+		{error, empty_process_group} -> throw(pid_missing);
+		pid -> pid
+	end.
+
+random(Mod) ->
+	Pids = pg2:get_members(Mod),
+    case Pids of 
+        [] -> throw(pid_missing);
+         _  -> lists:nth(random:uniform(length(Pids)), Pids)
+    end.
+
 

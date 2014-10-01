@@ -36,6 +36,11 @@
 
 -define(MARKER, <<-1:256>>).
 
+%% Pid location shortcuts
+-define(NEAR, lib_notify:near(?MODULE)).
+-define(FAST, lib_notify:fast(?MODULE)).
+-define(RANDOM, lib_notify:random(?MODULE)).
+
 % Expanded to nclude cumulative fields
 -record(bbdef, {network,
 		        blockhash, 
