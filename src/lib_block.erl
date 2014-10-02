@@ -28,7 +28,9 @@
 -module(lib_block).
 -author('mbranton@emberfinancial.com').
 
--export([header/1, hashes/1]).
+-export([header/1,
+         hashes/1,
+         print/1]).
 
 -include_lib("lib_bitter/include/bitter.hrl").
 
@@ -52,3 +54,11 @@ hashes(Block) when is_record(Block, bbdef) ->
 	Block#bbdef{txdata=hashes(Block#bbdef.txdata)};
 hashes(TxData) when is_list(TxData)->
 	lists:map(fun(E) -> #btxdef{txhash=binary:copy(E#btxdef.txhash)} end, TxData).
+
+print(B) when is_record(B, bbdef) ->
+    io:format("Hash ~p~nHeight~p~nPrevious:~p~nDifficulty:~p~n",
+              [hex:bin_to_hexstr(hex:bin_reverse(B#bbdef.blockhash)),
+               B#bbdef.e_height,
+               hex:bin_to_hexstr(hex:bin_reverse(B#bbdef.previoushash)),
+               B#bbdef.difficulty]).
+
