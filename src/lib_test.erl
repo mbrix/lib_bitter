@@ -82,7 +82,7 @@ term_from_file(Filename) ->
 fake_block(Filename) ->
 	A = term_from_file(Filename),
     B = zero_inputs(A), % Strip unused inputs
-	B.
+	B#bbdef{previoushash = ?CHAIN_ROOT}.
 
 
 zero_inputs(Block) ->
