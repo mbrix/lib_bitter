@@ -210,7 +210,8 @@ create_chain(Iterations, NumOutputs) ->
 	A = create_block(),
 	C = create_outputs(NumOutputs),
 	T = create_transaction([create_input()], C),
-	NewBlock = A#bbdef{txdata=[T]},
+	NewBlock = A#bbdef{previoushash = ?CHAIN_ROOT,
+	                   txdata=[T]},
 	{Acc, _B} = lists:mapfoldl(fun(_, Prev) ->
 		A2 = create_block(),
 		[Tdata|_] = Prev#bbdef.txdata,

@@ -70,6 +70,9 @@
 -define(MAGICBYTE_LIVE, 16#D9B4BEF9).
 -define(MAGICBYTE_TEST, 16#D9B4BEF9).
 
+% Root of Chain
+-define(CHAIN_ROOT, <<0:256>>).
+
 % Chain Definitions
 -record(bchaindef, {chainid,
 		            chain,
