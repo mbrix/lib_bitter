@@ -32,7 +32,15 @@
          near/1,
          fast/1,
          random/1,
-         where/2]).
+         where/2,
+         bregister/2,
+         bunregister/2,
+         join/1,
+         leave/1,
+         broadcast/2,
+         global_counter/1,
+         inc/1,
+         goodbye/0]).
 
 %%% Connect functions
 
@@ -90,4 +98,33 @@ random(Mod) ->
          _  -> lists:nth(random:uniform(length(Pids)), Pids)
     end.
 
+%% Broadcast and messaging functions
 
+bregister(local, Name) ->
+    gproc:reg({n,l,Name});
+
+bregister(global, Name) ->
+    gproc:reg({n,g,Name}).
+
+bunregister(local, Name) ->
+    gproc:unreg({n,l,Name});
+bunregister(global, Name) ->
+    gproc:unreg({n,g,Name}).
+
+join(Group) ->
+    gproc:reg({p,l,Group}).
+
+leave(Group) ->
+    gproc:unreg({p,l,Group}).
+
+broadcast(Group, Msg) ->
+    gproc:bcast({p,l,Group}, Msg).
+
+global_counter(Name) ->
+    gproc:add_global_aggr_counter(Name).
+
+inc(Name) ->
+    gproc:update_counter({n,g,Name}, 1).
+
+goodbye() ->
+    gproc:goodbye().
