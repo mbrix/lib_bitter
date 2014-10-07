@@ -66,6 +66,8 @@
 -record(btxin, {txhash, txindex, script = <<>>, seqnum, signed=false}).
 -record(btxout, {txindex, value, script = <<>>, address="", info, color=uncolored, quantity=0}).
 
+-record(blockorder, {order, hash}).
+
 % Magic numbers
 -define(MAGICBYTE_LIVE, 16#D9B4BEF9).
 -define(MAGICBYTE_TEST, 16#D9B4BEF9).
