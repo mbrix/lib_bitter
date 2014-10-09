@@ -118,7 +118,7 @@ leave(Group) ->
     gproc:unreg({p,l,Group}).
 
 broadcast(Group, Msg) ->
-    gproc:bcast({p,l,Group}, Msg).
+    gproc:bcast({p,l,Group}, {Group, self(), Msg}).
 
 global_counter(Name) ->
     gproc:add_global_aggr_counter(Name).
