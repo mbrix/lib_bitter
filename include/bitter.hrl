@@ -38,7 +38,9 @@
 
 -define(WHERE, lib_notify:where(Pid, ?MODULE)).
 -define(WHEREBLOCKD, lib_notify:where(Pid, bitter_blockd)).
--define(WHERECACHE, lib_notify:where(Pid, bitter_objcache)).
+
+% Always get the nearest cache
+-define(WHERECACHE, lib_notify:where(near, bitter_objcache)).
 
 % Expanded to nclude cumulative fields
 -record(bbdef, {network,
