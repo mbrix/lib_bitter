@@ -31,13 +31,14 @@
 -define(FEE_PER_K, 5000).
 -define(SIGHASH_NONE, 0).
 -define(SIGHASH_ALL, 1).
--define(SIGHASH_SINGLE, 2). % Might be wrong.
+-define(SIGHASH_SINGLE, 2). % ???.
 -define(MISSINGSIG, <<255,255,255,255,255,255,255,255,255,255>>).
 
 -define(MARKER, <<-1:256>>).
 
 -define(WHERE, lib_notify:where(Pid, ?MODULE)).
 -define(WHEREBLOCKD, lib_notify:where(Pid, bitter_blockd)).
+-define(WHERECACHE, lib_notify:where(Pid, bitter_objcache)).
 
 % Expanded to nclude cumulative fields
 -record(bbdef, {network,
