@@ -29,12 +29,18 @@
 
 -export([parse/2,
 	     parse_block/2,
+	     parse_raw/1,
 	     parse_tx/1,
 		 parse_script/1,
-	     getTransactions/2]).
+	     getTransactions/2,
+	     extract/1]).
 
 -define(MAGICBYTE, 16#D9B4BEF9).
 -include("bitter.hrl").
+
+parse_raw(Bin) ->
+    {_, BlockRecord, _} = extract(Bin),
+    BlockRecord.
 
 parse(Fname, Fun) ->
 	case file:read_file(Fname) of
@@ -61,6 +67,7 @@ extractLoop(_, 0, _) -> ok;
 extractLoop(Data, Loops, CallBackFun) ->
 	case extract(Data) of
 		{ok, Block2, Next} ->
+            %io:format("~p~n", [hex:bin_to_hexstr(binary:part(Data, {0, byte_size(Data) - byte_size(Next)}))]),
 			   CallBackFun(Block2),
 			   extractLoop(Next, Loops-1, CallBackFun);
 		{scan, Next} ->

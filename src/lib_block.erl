@@ -30,7 +30,8 @@
 
 -export([header/1,
          hashes/1,
-         print/1]).
+         print/1,
+        serialize/1]).
 
 -include_lib("lib_bitter/include/bitter.hrl").
 
@@ -53,7 +54,14 @@ header(Block) when is_record(Block, bbdef) ->
 hashes(Block) when is_record(Block, bbdef) ->
 	Block#bbdef{txdata=hashes(Block#bbdef.txdata)};
 hashes(TxData) when is_list(TxData)->
-	lists:map(fun(E) -> #btxdef{txhash=binary:copy(E#btxdef.txhash)} end, TxData).
+	lists:map(fun(E) ->
+	            #btxdef{txhash=binary:copy(E#btxdef.txhash),
+	                txversion=E#btxdef.txversion,
+	                inputcount=0,
+	                outputcount=0,
+	                txlocktime=E#btxdef.txlocktime,
+	                 txinputs=[],
+                     txoutputs=[]} end, TxData).
 
 print(B) when is_record(B, bbdef) ->
     io:format("Hash ~p~nHeight~p~nPrevious:~p~nDifficulty:~p~n",
@@ -62,3 +70,30 @@ print(B) when is_record(B, bbdef) ->
                hex:bin_to_hexstr(hex:bin_reverse(B#bbdef.previoushash)),
                B#bbdef.difficulty]).
 
+
+serialize(B) when is_record(B, bbdef) ->
+    Network= B#bbdef.network,
+    HeaderLength = B#bbdef.headerlength,
+    VersionNumber = B#bbdef.version,
+    PreviousHash = B#bbdef.previoushash,
+    MerkleRoot = B#bbdef.merkleroot,
+    TimeStamp = B#bbdef.timestamp,
+    TargetDifficulty = B#bbdef.difficulty,
+    Nonce = B#bbdef.nonce,
+    erlang:iolist_to_binary(
+    [<<Network:32/little, 
+    HeaderLength:32/little,
+    VersionNumber:32/little, 
+    PreviousHash:256/bitstring, 
+    MerkleRoot:256/bitstring, 
+    TimeStamp:32/little, 
+    TargetDifficulty:32/little, 
+    Nonce:32/little>>,
+     lib_tx:int_to_varint(length(B#bbdef.txdata)),
+     encode_txdata(B#bbdef.txdata)]).
+
+encode_txdata(TxList) -> encode_txdata(TxList, []).
+encode_txdata([], Acc) -> lists:reverse(Acc);
+encode_txdata(TxList, Acc) ->
+    [H|T] = TxList,
+    encode_txdata(T, [lib_tx:serialize_btxdef(H)|Acc]).
