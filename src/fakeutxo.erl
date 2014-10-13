@@ -27,8 +27,12 @@
 -module(fakeutxo).
 -author('mbranton@emberfinancial.com').
 
--export([start/0, import/0, import/1, block_tx/1,
-	     stop/0, lookup_tx/2]).
+-export([start/0,
+         import/0,
+         import/1,
+         block_tx/1,
+	     stop/0,
+	     lookup_tx/2]).
 
 % Fake Utxo creates a dictionary utxo for loading
 % test data.

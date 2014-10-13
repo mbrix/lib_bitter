@@ -19,8 +19,6 @@ decode(Bin, unsigned) ->
     <<Value:Size/unsigned-integer>> = BinValue,
     {Value, Tail}.
  
- 
- 
 encode_ranged(Value, Shift, Range) when -Range =< Value andalso Value < Range ->
     Chunk = Value bsr Shift,
     <<0:1, Chunk:7/integer>>;

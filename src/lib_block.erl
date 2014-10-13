@@ -31,9 +31,16 @@
 -export([header/1,
          hashes/1,
          print/1,
-        serialize/1]).
+         serialize/1,
+         color_serialize/1,
+         apply_color/2]).
 
 -include_lib("lib_bitter/include/bitter.hrl").
+-include_lib("eunit/include/eunit.hrl").
+
+-define(UNCOLORED, 0).
+-define(ATOM,      1).
+-define(BINARY,    2).
 
 header(Block) when is_record(Block, bbdef) ->
 	#bbdef{network=Block#bbdef.network,
@@ -97,3 +104,87 @@ encode_txdata([], Acc) -> lists:reverse(Acc);
 encode_txdata(TxList, Acc) ->
     [H|T] = TxList,
     encode_txdata(T, [lib_tx:serialize_btxdef(H)|Acc]).
+
+
+
+% Creates serialized version of colored block structure
+color_serialize(Block) when is_record(Block, bbdef) ->
+    erlang:iolist_to_binary(color_tx_serialize(Block#bbdef.txdata)).
+
+color_tx_serialize(TxList) -> color_tx_serialize(TxList, []).
+color_tx_serialize([], BinAcc) -> lists:reverse(BinAcc);
+color_tx_serialize(TxList, BinAcc) ->
+    [H|T] = TxList,
+    color_tx_serialize(T,
+            [color_serialize_outputs(H#btxdef.txoutputs)|BinAcc]).
+
+color_serialize_outputs(Outputs) ->
+    color_serialize_outputs(Outputs, []).
+color_serialize_outputs([], BinAcc) -> lists:reverse(BinAcc);
+color_serialize_outputs(Outputs, BinAcc) ->
+    [H|T] = Outputs,
+    [OutputColor, Quant] = color_output(H),
+    color_serialize_outputs(T, [[OutputColor, Quant]|BinAcc]).
+
+color_output(O) ->
+    [get_output_color(O#btxout.color),
+     get_output_quant(O#btxout.quantity)].
+
+get_output_color(uncolored) -> <<?UNCOLORED:8>>;
+get_output_color(undefined) -> <<?UNCOLORED:8>>;
+get_output_color(Color) when is_atom(Color) ->
+    CBin = erlang:term_to_binary(Color),
+    [<<?ATOM:8>>, lib_tx:int_to_varint(size(CBin)), CBin];
+get_output_color(Color) when is_binary(Color) ->
+                 [<<?BINARY:8>>, Color].
+
+get_output_quant(Quant) -> leb128:encode(Quant, unsigned). 
+
+
+% Applies serialized color information to block
+apply_color(Block, ColorBin) when is_record(Block, bbdef) ->
+    Block#bbdef{txdata = recolor_txdata(Block#bbdef.txdata,
+                                       ColorBin)}.
+
+recolor_txdata(TxList, ColorBin) ->
+    recolor_txdata(TxList, ColorBin, []).
+
+recolor_txdata([], _ColorBin, Acc) -> lists:reverse(Acc);
+recolor_txdata(_TxList, <<>>, _Acc) ->
+    throw(color_deserialize_error);
+recolor_txdata(TxList, ColorBin, Acc) ->
+    [H|T] = TxList,
+    {ColorOutputs, Rest} = recolor_outputs(H#btxdef.txoutputs,
+                                           ColorBin),
+    recolor_txdata(T, Rest, [H#btxdef{txoutputs = ColorOutputs}|Acc]).
+
+recolor_outputs(Outputs, ColorBin) ->
+    recolor_outputs(Outputs, ColorBin, []).
+
+recolor_outputs([], ColorBin, Acc) -> {lists:reverse(Acc), ColorBin};
+recolor_outputs(Outputs, ColorBin, Acc) ->
+    [H|T] = Outputs,
+    {Color, Quant, Rest} = next_color_quant(ColorBin),
+    recolor_outputs(T, Rest, [H#btxout{color = Color,
+                                       quantity = Quant}|Acc]).
+
+next_color_quant(<<>>) -> throw(color_deserialize_error);
+next_color_quant(<<?UNCOLORED:8, Rest/binary>>) ->
+    {_Quant, R2} = leb128:decode(Rest, unsigned),
+                      {uncolored, 0, R2};
+next_color_quant(<<?ATOM:8, Rest/binary>>) ->
+    [Length, R] = lib_tx:varint_to_int(Rest),
+    LengthBits = Length*8,
+    <<ColorBin:LengthBits/bitstring, R2/binary>> = R,
+    {Quant, R3} = leb128:decode(R2, unsigned),
+    {erlang:binary_to_term(ColorBin), Quant, R3};
+
+next_color_quant(<<?BINARY:8, Rest/binary>>) ->
+    <<ColorBin:160/bitstring, R2/binary>> = Rest,
+    {Quant, R3} = leb128:decode(R2, unsigned),
+    {ColorBin, Quant, R3};
+
+next_color_quant(_) ->
+    throw(color_deserialize_error).
+
+

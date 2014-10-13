@@ -52,12 +52,21 @@ complicated_serialize() ->
     %?debugFmt("~p~n~p~n", [RawBlock, BinBlock]),
     ?assertEqual(hex:bin_reverse(RawBlock),hex:bin_reverse(BinBlock)).
 
+color() ->
+    B = lib_test:fake_block("color_tests1.bin"),
+    ColorBin = lib_block:color_serialize(B),
+    ColorBlock = lib_block:apply_color(B, ColorBin),
+    %?debugFmt("~p~n~n~p~n", [B, ColorBlock]),
+    ?assertEqual(B, ColorBlock),
+    ok.
+
 block_test_() -> 
   {foreach,
   fun start/0,
   fun stop/1,
    [
 		{"Parse and Serialize", fun parse_serialize/0},
-		{"More complicated", fun complicated_serialize/0}
+		{"More complicated", fun complicated_serialize/0},
+		{"Color Serialize / Deserialize", fun color/0}
    ]
   }.
