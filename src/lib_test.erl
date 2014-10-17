@@ -166,7 +166,9 @@ create_random_output() ->
 
 create_output() -> create_output(0).
 create_output(Txindex) ->
-	create_output(Txindex, 50000, lib_address:address_to_hash160("15MLJpjve5pjPD5aTyK1aBRZ2aW8Vwcwyx")).
+	create_output(Txindex,
+	           50000,
+	           lib_address:address_to_hash160("15MLJpjve5pjPD5aTyK1aBRZ2aW8Vwcwyx")).
 create_output(Txindex, Value, Address) when is_record(Address, addr) ->
 	create_output(Txindex, Value, lib_address:hash160(Address));
 create_output(Txindex, Value, Address) ->
