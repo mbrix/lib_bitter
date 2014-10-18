@@ -132,6 +132,11 @@ from(O) when is_record(O, btxout) ->
 new() ->
 	#color{}.
 
+% Used by test code
+new(ColorAtom) when is_atom(ColorAtom) ->
+    #color{name = ColorAtom,
+           bin = ColorAtom};
+
 new(ColorName) when is_list(ColorName) ->
 	#color{name = unknown,
 		   bin = hash160(ColorName)}.
