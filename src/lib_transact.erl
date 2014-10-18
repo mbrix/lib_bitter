@@ -366,5 +366,28 @@ get_quantity_unspents(dict, Color, Unspents) ->
 					_ ->
 						Acc
 				end
-				end, 0, Unspents).
+				end, 0, Unspents);
 
+get_quantity_unspents(map, Color, Unspents) ->
+	maps:fold(fun(_K, V, Acc) ->
+				case {V#utxop.color, Color} of
+					{Color, uncolored} ->
+						Acc + V#utxop.value;
+					{Color, _} ->
+						Acc + V#utxop.quantity;
+					_ ->
+						Acc
+				end
+				end, 0, Unspents);
+
+get_quantity_unspents(list, Color, Unspents) ->
+	lists:foldl(fun(V, Acc) ->
+				case {V#utxop.color, Color} of
+					{Color, uncolored} ->
+						Acc + V#utxop.value;
+					{Color, _} ->
+						Acc + V#utxop.quantity;
+					_ ->
+						Acc
+				end
+				end, 0, Unspents).
