@@ -321,6 +321,7 @@ hash160(Color) when is_record(Color, color) ->
 	Color#color.bin;
 hash160(Color) -> Color. % Catch all those atoms
 
+readable(IssueColor) when is_atom(IssueColor) -> IssueColor;
 readable(IssueColor) when is_record(IssueColor, color) ->
 	readable(IssueColor#color.bin);
 readable(IssueColor) ->
