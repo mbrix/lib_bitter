@@ -139,7 +139,11 @@ new(ColorAtom) when is_atom(ColorAtom) ->
 
 new(ColorName) when is_list(ColorName) ->
 	#color{name = unknown,
-		   bin = hash160(ColorName)}.
+		   bin = hash160(ColorName)};
+
+new(ColorBin) when is_binary(ColorBin) ->
+    #color{name = unknown,
+       bin = ColorBin}.
 
 new(Name, U) when is_record(U, utxop) ->
 	IC = unspent_to_ic(U),
