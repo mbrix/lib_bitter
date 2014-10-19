@@ -312,7 +312,7 @@ unspent_to_ic(Unspent) ->
 input_to_ic(Input) ->
 	crypto:hash(ripemd160, crypto:hash(sha256, Input#btxin.script)).
 
-hash160(uncolored) -> uncolored;
+hash160(ColorAtom) when is_atom(ColorAtom) -> ColorAtom;
 hash160(Color) when is_list(Color) ->
 	lib_address:address_to_hash160(Color);
 hash160(Color) when is_binary(Color) ->
