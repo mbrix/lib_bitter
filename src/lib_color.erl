@@ -241,7 +241,12 @@ get_color_quant(Color, ColorList, Q) ->
 		  			Color
     			end,
 	if Q < AvailableQuantity ->
-			{NextColor, [{CColor, AvailableQuantity-Q}|CT]};
+	        try
+			    {NextColor, [{CColor, AvailableQuantity-Q}|CT]}
+            catch _:_ ->
+                    io:format("XXXX: ~p ~p  ~n", [AvailableQuantity, Q]),
+                    throw(coloring_error)
+            end;
 	   Q =:= AvailableQuantity ->
 	   		{NextColor, CT};
 	   Q > AvailableQuantity ->

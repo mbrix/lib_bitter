@@ -492,3 +492,13 @@ vector(V) when is_record(V, bbdef) ->
 vector(_) ->
 	[?INV_ERROR, << 0:256 >>].
 
+
+total(Tx) when is_record(Tx, btxdef) ->
+    add_outputs(Tx#btxdef.outputs).
+
+add_outputs(Tx) -> add_outputs(Tx, 0).
+
+add_outputs([], Value) -> Value;
+add_outputs(O, Value) ->
+    [H|T] = O,
+    add_outputs(T, Value + H#btxout.value)
