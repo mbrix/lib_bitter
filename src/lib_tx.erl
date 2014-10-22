@@ -55,7 +55,8 @@
 	     readable/1,
 	     from_hex/1,
 	     vector/1,
-	     sigs/1]).
+	     sigs/1,
+	     total/1]).
 
 
 -include_lib("bitter.hrl").
@@ -494,11 +495,11 @@ vector(_) ->
 
 
 total(Tx) when is_record(Tx, btxdef) ->
-    add_outputs(Tx#btxdef.outputs).
+    add_outputs(Tx#btxdef.txoutputs).
 
 add_outputs(Tx) -> add_outputs(Tx, 0).
 
 add_outputs([], Value) -> Value;
 add_outputs(O, Value) ->
     [H|T] = O,
-    add_outputs(T, Value + H#btxout.value)
+    add_outputs(T, Value + H#btxout.value).
