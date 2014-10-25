@@ -486,10 +486,10 @@ varint_to_int(_) -> error.
 % Vector conversion
 vector(V) when is_record(V, btxdef) ->
 	H = V#btxdef.txhash,
-	[?INV_TX, << H:256 >>];
+	[?INV_TX, << H:256/bitstring >>];
 vector(V) when is_record(V, bbdef) ->
 	H = V#bbdef.blockhash,
-	[?INV_BLOCK, << H:256 >>];
+	[?INV_BLOCK, << H:256/bitstring >>];
 vector(_) ->
 	[?INV_ERROR, << 0:256 >>].
 
