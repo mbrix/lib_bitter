@@ -39,6 +39,12 @@
 -define(WHERE, lib_notify:where(Pid, ?MODULE)).
 -define(WHEREBLOCKD, lib_notify:where(Pid, bitter_blockd)).
 
+-define(Unspent_Nostate, <<0:8>>).
+-define(Unspent_Confirmed, <<1:8>>).
+-define(Unspent_Unconfirmed, <<2:8>>).
+-define(Spent_Unconfirmed, <<3:8>>).
+-define(Spent_Confirmed, <<4:8>>).
+
 % Always get the nearest cache
 -define(WHERECACHE, lib_notify:where(near, bitter_objcache)).
 
@@ -86,7 +92,7 @@
 					qlen}).
 
 % Unspent Transaction Pool
--record(utxop, {hash_index, value, script, address, info, color, quantity, height}).
+-record(utxop, {hash_index, value, script, address, info, color, quantity, height, touched, state}).
 
 % Address mapping pool
 -record(address, {address, hash_index}).

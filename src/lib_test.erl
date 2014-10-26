@@ -110,7 +110,9 @@ output_to_unspent(Txhash, O) ->
 		   info = O#btxout.info, 
 		   color = O#btxout.color,
 		   quantity = O#btxout.quantity,
-		   height = 0}.
+		   height = 0,
+	       touched = 0,
+	       state = undefined}.
 
 random_p2sh_input(Type) ->
 	{Addr, KeyList} = lib_address:generate_p2sh_address(Type),
