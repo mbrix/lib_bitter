@@ -36,7 +36,8 @@
 	     merge/2,
 	     oldest/1,
 	     newest/1,
-	     height/2]).
+	     height/2,
+	     remove/2]).
 
 -include_lib("bitter.hrl").
 
@@ -79,6 +80,13 @@ get(Hash, Index, KD) ->
 		{ok, V} -> V;
 		_ -> error
 	end.
+
+remove(Dict, RDict) ->
+    dict:filter(fun(K,_V) ->
+                case dict:find(K, RDict) of
+                    {ok, _} -> false;
+                    error -> true
+                end end, Dict).
 
 height(Dict, Height) ->
     oldest(dict:filter(fun(_K, V) ->
