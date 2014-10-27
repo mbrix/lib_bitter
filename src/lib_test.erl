@@ -108,11 +108,14 @@ output_to_unspent(Txhash, O) ->
 		   script = O#btxout.script,
 		   address = O#btxout.address,
 		   info = O#btxout.info, 
-		   color = O#btxout.color,
+		   color = filter_color(O#btxout.color),
 		   quantity = O#btxout.quantity,
 		   height = 0,
 	       touched = 0,
 	       state = undefined}.
+
+filter_color(uncolored) -> ?Uncolored;
+filter_color(R) -> R.
 
 random_p2sh_input(Type) ->
 	{Addr, KeyList} = lib_address:generate_p2sh_address(Type),

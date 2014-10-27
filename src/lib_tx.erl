@@ -358,11 +358,11 @@ create_script(p2sh, PublicKeyList) ->
 	RedeemScriptHash = lib_address:p2sh_redeemscript_hash(PublicKeyList),
 	create_script(p2sh, RedeemScriptHash).
 
-create_output(Type, uncolored, ValueBits, PubkeyBin) ->
+create_output(Type, ?Uncolored, ValueBits, PubkeyBin) ->
 	Script = create_script(Type, PubkeyBin),
 	#btxout{value = ValueBits,
             script = Script,
-            color = uncolored,
+            color = ?Uncolored,
             quantity = 0};
 create_output(Type, Color, ColorQuant, PubkeyBin) ->
 	Script = create_script(Type, PubkeyBin),

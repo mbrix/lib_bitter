@@ -191,7 +191,7 @@ validate_quantity_list(QList) ->
 		end, QList, QList).
 
 find_marker(O) -> find_marker(O, []).
-find_marker([], _) -> uncolored;
+find_marker([], _) -> ?Uncolored;
 find_marker(Outputs, Issuance) ->
 	[H|T] = Outputs,
 	case H#btxout.info of
@@ -220,23 +220,23 @@ color_outputs(Inputs, Outputs, GetFun) when is_function(GetFun) ->
 			TransferList = do_transfers(ColorList,
 				         Q2, Transfer),
 			IssuedList ++ [M] ++ TransferList;
-		uncolored ->
+		?Uncolored ->
 			uncolor_all(Outputs)
 	end.
 
-get_color_quant([], _) -> {uncolored, []};
+get_color_quant([], _) -> {?Uncolored, []};
 get_color_quant(ColorList, Q) ->
 	[{Color, _}|_CT] = ColorList,
 	get_color_quant(Color, ColorList, Q).
 
 get_color_quant(_Color, [], Q) when Q > 0 ->
-	{uncolored, []};
+	{?Uncolored, []};
 get_color_quant(_, ColorList, 0) ->
-	{uncolored, ColorList};
+	{?Uncolored, ColorList};
 get_color_quant(Color, ColorList, Q) ->
 	[{CColor, AvailableQuantity}|CT] = ColorList,
 	NextColor = if CColor =/= Color ->
-	      			uncolored;
+	      			?Uncolored;
 	   			   true ->
 		  			Color
     			end,
@@ -269,7 +269,7 @@ do_transfers(ColorList, M, TransferOutputs, Acc) ->
 	[Output|OT] = TransferOutputs,
 	{OutputColor, NewColorList} = get_color_quant(ColorList, QuantityNeeded),
 	case OutputColor of
-		uncolored ->
+		?Uncolored ->
 			do_transfers(NewColorList, MT, OT,
 				[Output#btxout{color=OutputColor,
 						       quantity=0}|Acc]);
@@ -290,14 +290,14 @@ do_issuance(IC, M, IssuedOutputs, Acc) ->
 	[O|T] = IssuedOutputs,
 	case Q of
 		0 ->
-			do_issuance(IC, MT, T, [O#btxout{color=uncolored,
+			do_issuance(IC, MT, T, [O#btxout{color=?Uncolored,
 				                     quantity=0}|Acc]);
 		_ ->
 			do_issuance(IC, MT, T, [O#btxout{color=IC,
 				                     quantity=Q}|Acc])
 	end.
 
-get_issue_color([], _) -> uncolored;
+get_issue_color([], _) -> ?Uncolored;
 get_issue_color(Inputs, GetFun) ->
 	try
 		[Tx|_] = Inputs,
@@ -307,7 +307,7 @@ get_issue_color(Inputs, GetFun) ->
 		_:_ -> throw(coloring_error)
 	end.
 
-get_issue_color_unspents([]) -> uncolored;
+get_issue_color_unspents([]) -> ?Uncolored;
 get_issue_color_unspents(Unspents) ->
 	[U|_] = Unspents,
 	unspent_to_ic(U).
@@ -338,7 +338,7 @@ readable(IssueColor) ->
 	lib_address:p2sh_hash160_to_address(IssueColor).
 
 uncolor_all(O) ->
-	lists:map(fun(R) -> R#btxout{color=uncolored, quantity=0} end, O).
+	lists:map(fun(R) -> R#btxout{color=?Uncolored, quantity=0} end, O).
 
 build_color_list(Inputs, GetFun) ->
 	try
@@ -346,7 +346,7 @@ build_color_list(Inputs, GetFun) ->
 				  {ok, N} =
 				  	GetFun(R#btxin.txhash, R#btxin.txindex),
 					case N#utxop.color of
-						uncolored ->
+						?Uncolored ->
 							false;
 						_ ->
 				  			{true, {N#utxop.color, N#utxop.quantity}}
@@ -382,7 +382,7 @@ encode_marker(M) ->
 create_marker_output(M) when is_list(M) ->
 	BinMarker = encode_marker(M),
 	#btxout{value = 0,
-		    color = uncolored,
+		    color = ?Uncolored,
 		    quantity = 0,
 		    script = BinMarker,
 		    info = lib_parse:parse_script(BinMarker)}.
@@ -390,7 +390,7 @@ create_marker_output(M) when is_list(M) ->
 marker(P) when is_record(P, payment) ->
 	L = lists:takewhile(fun(E) ->
 					case E#btxout.color of
-						uncolored ->
+						?Uncolored ->
 							false;
 						_ ->
 							true
@@ -440,7 +440,7 @@ insert_marker(P, M) ->
 is_colored(Outputs) when is_list(Outputs) ->
 	UncoloredOutputs = lists:takewhile(fun(E) ->
 			case E#btxout.color of
-				uncolored ->
+				?Uncolored ->
 					true;
 				_ ->
 					false

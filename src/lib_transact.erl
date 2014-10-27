@@ -76,7 +76,7 @@ payment() ->
 
 % Uncolored unspent
 
-issue(Payment, Unspent = #utxop{color = uncolored}, Payee) ->
+issue(Payment, Unspent = #utxop{color = ?Uncolored}, Payee) ->
 	if Payment#payment.issuances =/= 0 ->
 			throw(issue_error);
 	   true ->
@@ -117,7 +117,7 @@ pay(Payment, Unspents, Payee) when
 			O = Payment#payment.outputs,
 			add_payee(Payment#payment{outputs = create_change_output(Payment, O),
 					            change=undefined,
-					            r_color=uncolored,
+					            r_color=?Uncolored,
 					            r_value=0}, Unspents, Payee, false);
 		true ->
 			add_payee(Payment, Unspents, Payee, false)
@@ -168,8 +168,8 @@ check_dust_verify(P) ->
 	end end, P#payment.outputs).
 
 check_value(P) ->
-	BTCspent = value(uncolored, P#payment.selected),
-	BTCincluded = value(uncolored, P#payment.outputs),
+	BTCspent = value(?Uncolored, P#payment.selected),
+	BTCincluded = value(?Uncolored, P#payment.outputs),
 	BTCFee = BTCincluded - BTCspent,
 	if BTCFee < 5*?DEFAULTFEE -> P;
 	   true -> 
@@ -210,13 +210,13 @@ make_outputs(Unspents,
 finish_color(P) when is_record(P, payment) ->
 	P#payment{outputs=create_change_output(P, P#payment.outputs),
 		      change=undefined,
-			  r_color=uncolored,
+			  r_color=?Uncolored,
 			  r_value=0}.
 
 add_change(P, Unspents, Change) when is_record(P, payment),
 		is_record(Change, addr) ->
-	BTCspent = value(uncolored, P#payment.selected),
-	BTCincluded = value(uncolored, P#payment.outputs),
+	BTCspent = value(?Uncolored, P#payment.selected),
+	BTCincluded = value(?Uncolored, P#payment.outputs),
 	BTCneeded = BTCincluded + P#payment.fee,
 	%?debugFmt("~p ~p ~p ~p~n", [Fee, BTCspent, BTCincluded, BTCneeded]),
 	if BTCspent =:= BTCneeded ->
@@ -230,7 +230,7 @@ add_change(P, Unspents, Change) when is_record(P, payment),
 	   		% Not enough BTC to cover fees
 	   		% Create a payment back to change addr
 	   		% Overflow = true so total acquired BTC goes back to change
-			add_payee(P, Unspents, payee(Change, Change, uncolored, Diff), true)
+			add_payee(P, Unspents, payee(Change, Change, ?Uncolored, Diff), true)
 	end.
 
 % Insert an open assets color marker
@@ -243,7 +243,7 @@ color_marker(P) when is_record(P, payment) ->
 	end.
 
 create_change_output(#payment{r_value = 0}, O) -> O;
-create_change_output(#payment{r_color = uncolored}, O) -> O;
+create_change_output(#payment{r_color = ?Uncolored}, O) -> O;
 
 create_change_output(P, O) when is_record(P, payment) ->
 	[lib_tx:create_output(lib_address:type(P#payment.change),
@@ -252,7 +252,7 @@ create_change_output(P, O) when is_record(P, payment) ->
 
 create_change_output(P, Value, O) when is_record(P, addr) ->
 	[lib_tx:create_output(lib_address:type(P),
-		uncolored, Value,
+		?Uncolored, Value,
 		P#addr.bin)|O].
 
 create_output(P) when is_record(P, payee) ->
@@ -267,16 +267,16 @@ get_value(O) when is_record(O, btxout) -> O#btxout.value.
 %get_quant(O) when is_record(O, utxop) -> O#utxop.quantity;
 %get_quant(O) when is_record(O, btxout) -> O#btxout.quantity.
 
-value(uncolored, Outputs) when is_list(Outputs) ->
+value(?Uncolored, Outputs) when is_list(Outputs) ->
 	lists:foldl(fun(O, Sum) ->
 		get_value(O) + Sum
 	end, 0, Outputs).
 
-get_available_value(#utxop{color = uncolored} = O) -> O#utxop.value;
-get_available_value(#btxout{color = uncolored} = O) -> O#btxout.value;
+get_available_value(#utxop{color = ?Uncolored} = O) -> O#utxop.value;
+get_available_value(#btxout{color = ?Uncolored} = O) -> O#btxout.value;
 get_available_value(_) -> 0.
 
-available(uncolored, Outputs) when is_list(Outputs) ->
+available(?Uncolored, Outputs) when is_list(Outputs) ->
 	lists:foldl(fun(O, Sum) ->
 		get_available_value(O) + Sum
 	end, 0, Outputs).
@@ -315,11 +315,11 @@ get_inputs(list,
 
 get_inputs(list,
 		   UnspentList,
-		   Payee = #payee{color=uncolored},
+		   Payee = #payee{color=?Uncolored},
 	       Remainder) ->
 	lists:foldl(fun(U, {UL, SL, Total}) ->
 				case U#utxop.color of
-					uncolored ->
+				    ?Uncolored ->
 						if Total =< Payee#payee.value ->
 							{UL, [U|SL], Total + U#utxop.value};
 				   		true ->
@@ -359,7 +359,7 @@ get_colored_unspents(dict, Color, Unspents) ->
 get_quantity_unspents(dict, Color, Unspents) ->
 	dict:fold(fun(_K, V, Acc) ->
 				case {V#utxop.color, Color} of
-					{Color, uncolored} ->
+					{Color, ?Uncolored} ->
 						Acc + V#utxop.value;
 					{Color, _} ->
 						Acc + V#utxop.quantity;
@@ -371,7 +371,7 @@ get_quantity_unspents(dict, Color, Unspents) ->
 get_quantity_unspents(map, Color, Unspents) ->
 	maps:fold(fun(_K, V, Acc) ->
 				case {V#utxop.color, Color} of
-					{Color, uncolored} ->
+					{Color, ?Uncolored} ->
 						Acc + V#utxop.value;
 					{Color, _} ->
 						Acc + V#utxop.quantity;
@@ -383,7 +383,7 @@ get_quantity_unspents(map, Color, Unspents) ->
 get_quantity_unspents(list, Color, Unspents) ->
 	lists:foldl(fun(V, Acc) ->
 				case {V#utxop.color, Color} of
-					{Color, uncolored} ->
+					{Color, ?Uncolored} ->
 						Acc + V#utxop.value;
 					{Color, _} ->
 						Acc + V#utxop.quantity;

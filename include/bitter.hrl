@@ -45,6 +45,8 @@
 -define(Spent_Unconfirmed, <<3:8>>).
 -define(Spent_Confirmed, <<4:8>>).
 
+-define(Uncolored, <<0:1>>).
+
 % Always get the nearest cache
 -define(WHERECACHE, lib_notify:where(near, bitter_objcache)).
 
@@ -73,7 +75,7 @@
 				txoutputs}).
 
 -record(btxin, {txhash, txindex, script = <<>>, seqnum, signed=false}).
--record(btxout, {txindex, value, script = <<>>, address="", info, color=uncolored, quantity=0}).
+-record(btxout, {txindex, value, script = <<>>, address="", info, color=?Uncolored, quantity=0}).
 
 -record(blockorder, {order, hash}).
 
