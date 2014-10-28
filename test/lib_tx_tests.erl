@@ -64,7 +64,7 @@ sign_tx() ->
        <<118,169,20,253,91,81,89,202,50,0,85,166,131,211,59,126,64,181,55,206,
          150,43,2,136,172>>,
        <<253,91,81,89,202,50,0,85,166,131,211,59,126,64,181,55,206,150,43,2>>,
-       p2pkh,?Uncolored,0,312763,312763,?Unspent_Nostate},
+       p2pkh,?Uncolored,0,312763,?Unspent_Nostate},
     UnspentDict = lib_kd:add(Unspent),
     {Hash160Public, Public, Private} = {<<253,91,81,89,202,50,0,85,166,131,211,59,126,64,181,55,206,150,43,2>>,
  <<3,62,157,4,220,25,221,86,158,186,154,170,210,195,229,183,83,94,211,43,217,5,
@@ -126,7 +126,7 @@ create_p2sh_to_p2pkh_transaction() ->
        <<169,20,26,40,10,174,157,152,180,191,245,201,71,139,39,108,33,92,170,
          41,62,230,135>>,
        <<26,40,10,174,157,152,180,191,245,201,71,139,39,108,33,92,170,41,62,230>>,
-       p2sh,?Uncolored,0,313879,313878,?Unspent_Nostate},
+       p2sh,?Uncolored,0,313879,?Unspent_Nostate},
     UnspentDict = lib_kd:add(Unspent),
 	% The Hash160 Address maps to a tuple list of Public / Private keypairs
 	% or proposals necessary to construct the composite script sig

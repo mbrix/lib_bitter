@@ -111,7 +111,6 @@ output_to_unspent(Txhash, O) ->
 		   color = filter_color(O#btxout.color),
 		   quantity = O#btxout.quantity,
 		   height = 0,
-	       touched = 0,
 	       state = undefined}.
 
 filter_color(uncolored) -> ?Uncolored;
