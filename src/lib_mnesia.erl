@@ -29,7 +29,8 @@
 -module(lib_mnesia).
 -export([db_migrate/4,
          migrate_fragments/3,
-         get_fragments/1]).
+         get_fragments/1,
+         get_records/1]).
 
 db_migrate(dev, _, _, _) -> ok;
 db_migrate(_, Tab, NodeList, Type) ->
@@ -47,4 +48,11 @@ get_fragments(Tab) ->
                     fun mnesia:table_info/2,
                     [Tab, frag_names], mnesia_frag).
 
+% testing
+get_records(Tab) ->
+    get_records(get_fragments(Tab), []).
 
+get_records([], Acc) -> Acc;
+get_records(TList, Acc) ->
+    [H|T] = TList,
+    get_records(T, ets:tab2list(H) ++ Acc).
