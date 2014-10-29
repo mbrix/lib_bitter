@@ -45,7 +45,7 @@
 -define(Spent_Unconfirmed, <<3:8>>).
 -define(Spent_Confirmed, <<4:8>>).
 
--define(Uncolored, <<0:1>>).
+-define(Uncolored, <<0:8>>).
 
 % Always get the nearest cache
 -define(WHERECACHE, lib_notify:where(near, bitter_objcache)).
