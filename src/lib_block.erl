@@ -35,7 +35,7 @@
          color_serialize/1,
          apply_color/2]).
 
--include_lib("lib_bitter/include/bitter.hrl").
+-include_lib("bitter.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
 -define(UNCOLORED, 0).
@@ -131,6 +131,7 @@ color_output(O) ->
      get_output_quant(O#btxout.quantity)].
 
 get_output_color(?Uncolored) -> <<?UNCOLORED:8>>;
+get_output_color(<<0:1>>) -> <<?UNCOLORED:8>>;
 get_output_color(uncolored) -> <<?UNCOLORED:8>>;
 get_output_color(undefined) -> <<?UNCOLORED:8>>;
 get_output_color(Color) when is_atom(Color) ->
