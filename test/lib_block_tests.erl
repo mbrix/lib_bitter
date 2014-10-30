@@ -57,8 +57,7 @@ color() ->
     ColorBin = lib_block:color_serialize(B),
     ColorBlock = lib_block:apply_color(B, ColorBin),
     %?debugFmt("~p~n~n~p~n", [B, ColorBlock]),
-    ?assertEqual(B, ColorBlock),
-    ok.
+    ?assertEqual(B, ColorBlock).
 
 block_test_() -> 
   {foreach,

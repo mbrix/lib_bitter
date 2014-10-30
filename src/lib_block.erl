@@ -130,6 +130,7 @@ color_output(O) ->
     [get_output_color(O#btxout.color),
      get_output_quant(O#btxout.quantity)].
 
+get_output_color(?Uncolored) -> <<?UNCOLORED:8>>;
 get_output_color(uncolored) -> <<?UNCOLORED:8>>;
 get_output_color(undefined) -> <<?UNCOLORED:8>>;
 get_output_color(Color) when is_atom(Color) ->
@@ -171,7 +172,7 @@ recolor_outputs(Outputs, ColorBin, Acc) ->
 next_color_quant(<<>>) -> throw(color_deserialize_error);
 next_color_quant(<<?UNCOLORED:8, Rest/binary>>) ->
     {_Quant, R2} = leb128:decode(Rest, unsigned),
-                      {uncolored, 0, R2};
+                      {?Uncolored, 0, R2};
 next_color_quant(<<?ATOM:8, Rest/binary>>) ->
     [Length, R] = lib_tx:varint_to_int(Rest),
     LengthBits = Length*8,
