@@ -132,6 +132,10 @@ from(O) when is_record(O, btxout) ->
 new() ->
 	#color{}.
 
+new(uncolored) ->
+    #color{name = "Uncolored",
+           bin = ?Uncolored};
+
 % Used by test code
 new(ColorAtom) when is_atom(ColorAtom) ->
     #color{name = ColorAtom,
@@ -331,6 +335,7 @@ hash160(Color) when is_record(Color, color) ->
 	Color#color.bin;
 hash160(Color) -> Color. % Catch all those atoms
 
+readable(?Uncolored) -> uncolored;
 readable(IssueColor) when is_atom(IssueColor) -> IssueColor;
 readable(IssueColor) when is_record(IssueColor, color) ->
 	readable(IssueColor#color.bin);
