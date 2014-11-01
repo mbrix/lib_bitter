@@ -305,7 +305,13 @@ dust_fee() ->
 	?assertThrow(insufficient_funds, lib_transact:pay(lib_transact:payment(), Unspents, P)).
 
 
-
+satoshi_conversions() ->
+    ?assertEqual(100000000, lib_transact:btc_to_satoshi(1)),
+    ?assertEqual(0.00001, lib_transact:satoshi_to_mbtc(1)),
+    ?assertEqual(0.01, lib_transact:satoshi_to_ubtc(1)),
+    ?assertEqual(100000000, lib_transact:btc_to_satoshi(1)),
+    ?assertEqual(1000000.0, lib_transact:btc_to_ubtc(1)),
+    ?assertEqual(1000.0, lib_transact:btc_to_mbtc(1)).
 
 %{ok, _, _, Tx} = lib_transact:finalize(Payment, Remaining, Change),
 %	?debugFmt("~p~n", [Tx#btxdef.txoutputs]),
@@ -332,6 +338,7 @@ transact_test_() ->
 		{"Nonexistent color", fun nonexistent_color/0},
 		{"No room for fee", fun no_fee/0},
 		{"Change under dust limit.", fun change_under_dust/0},
-		{"Try to trigger leftover dust", fun dust_fee/0}
+		{"Try to trigger leftover dust", fun dust_fee/0},
+		{"Satoshi conversions", fun satoshi_conversions/0}
    ]
   }.
