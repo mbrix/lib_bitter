@@ -360,14 +360,20 @@ create_script(p2sh, PublicKeyList) ->
 
 create_output(Type, ?Uncolored, ValueBits, PubkeyBin) ->
 	Script = create_script(Type, PubkeyBin),
+	Info = lib_parse:parse_script(Script),
 	#btxout{value = ValueBits,
             script = Script,
+            info = Info,
+            address = lib_address:script_to_address(Info, Script),
             color = ?Uncolored,
             quantity = 0};
 create_output(Type, Color, ColorQuant, PubkeyBin) ->
 	Script = create_script(Type, PubkeyBin),
+	Info = lib_parse:parse_script(Script),
 	#btxout{value = ?DUSTLIMIT,
 		    script = Script,
+            info = Info,
+            address = lib_address:script_to_address(Info, Script),
 		    color = Color,
 		    quantity = ColorQuant}.
 
