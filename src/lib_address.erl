@@ -67,16 +67,20 @@ new(Script) when is_binary(Script) ->
 		   bin = BinaryAddress};
 
 new(Address) when is_list(Address) ->
-	<<X:8, _/binary>> = erlang:list_to_binary(Address),
-	BinAddress = address_to_hash160(Address),
-	case X of
-		$1 ->
-			#addr{type = p2pkh,
-				  bin = BinAddress};
-		$3 ->
-			#addr{type = p2sh,
-				  bin = BinAddress}
-	end;
+    try
+	    <<X:8, _/binary>> = erlang:list_to_binary(Address),
+	    BinAddress = address_to_hash160(Address),
+	    case X of
+	    	$1 ->
+	    		#addr{type = p2pkh,
+	    			  bin = BinAddress};
+	    	$3 ->
+	    		#addr{type = p2sh,
+	    			  bin = BinAddress}
+	    end
+    catch
+        _:_ -> throw(address_error)
+    end;
 
 new(Address) when is_record(Address, addr) ->
 	Address.
