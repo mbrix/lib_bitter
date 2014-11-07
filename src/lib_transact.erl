@@ -52,7 +52,11 @@
 	     ubtc_to_satoshi/1,
 	     btc_to_satoshi/1,
 	     btc_to_mbtc/1,
-	     btc_to_ubtc/1]).
+	     btc_to_ubtc/1,
+	     add_fee/1,
+	     spent/2,
+	     included/2,
+	     fee/1]).
 
 -include_lib("bitter.hrl").
 -include_lib("eunit/include/eunit.hrl").
@@ -189,6 +193,18 @@ finalize(Payment, Unspents, Change) when is_record(Payment, payment) ->
 add_fee(P) ->
 	P#payment{fee = lib_tx:calculate_fee(tx(P))}.
 
+spent(P, Color) ->
+    A = lib_color:new(Color),
+    value(lib_color:hash160(A), P#payment.selected).
+
+included(P, Color) ->
+    A = lib_color:new(Color),
+    value(lib_color:hash160(A), P#payment.outputs).
+
+fee(P) ->
+    P2 = add_fee(P),
+    P2#payment.fee.
+
 final_check(P) ->
 	check_dust_verify(P),
 	check_value(P),
@@ -253,7 +269,7 @@ add_change(P, Unspents, Change) when is_record(P, payment),
 	BTCspent = value(?Uncolored, P#payment.selected),
 	BTCincluded = value(?Uncolored, P#payment.outputs),
 	BTCneeded = BTCincluded + P#payment.fee,
-	%?debugFmt("~p ~p ~p ~p~n", [Fee, BTCspent, BTCincluded, BTCneeded]),
+	%?debugFmt("~p ~p ~p ~p~n", [P#payment.fee, BTCspent, BTCincluded, BTCneeded]),
 	if BTCspent =:= BTCneeded ->
 			{Unspents, P};
 	   BTCspent > BTCneeded ->
