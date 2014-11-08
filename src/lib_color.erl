@@ -45,6 +45,8 @@
 	     meta/1,
 	     meta_url/1,
 	     readable/1,
+	     readable_colors/1,
+	     readable_issue_colors/1,
 	     find_color/2,
 	     from/1,
 	     new/0,
@@ -52,7 +54,10 @@
 	     new/2,
 	     from_json/1,
 	     to_json/1,
-	     hash160/1]).
+	     hash160/1,
+	     find_spend_color/2,
+	     new_spend_color/1,
+	     script_to_ic/1]).
 
 % testing
 -export([create_marker_output/1]).
@@ -316,11 +321,47 @@ get_issue_color_unspents(Unspents) ->
 	[U|_] = Unspents,
 	unspent_to_ic(U).
 
+unspent_color_dict(UnspentList) ->
+    unspent_color_dict(UnspentList, dict:new()).
+
+unspent_color_dict([], ColorDict) -> ColorDict;
+unspent_color_dict(UnspentList, ColorDict) ->
+    [H|T] = UnspentList,
+    case H#utxop.color of
+        ?Uncolored ->
+            HColor = unspent_to_ic(H),
+            C2 = dict:store(HColor, H, ColorDict),
+            unspent_color_dict(T, C2);
+        _ ->
+            unspent_color_dict(T, ColorDict)
+    end.
+
+find_spend_color(Color, Unspents) ->
+    C2 = new(Color),
+    ColorDict = unspent_color_dict(Unspents),
+    case dict:find(C2#color.bin, ColorDict) of
+        {ok, Unspent} -> {ok, C2, Unspent};
+        error -> error
+    end.
+
+new_spend_color(Unspents) ->
+    ColorList = dict:to_list(unspent_color_dict(Unspents)),
+    get_spend_color(ColorList).
+
+get_spend_color([]) -> error;
+get_spend_color(ColorList) ->
+    [{ColorBin, _}|_] = ColorList,
+    new(ColorBin).
+
+
 unspent_to_ic(Unspent) ->
 	crypto:hash(ripemd160, crypto:hash(sha256, Unspent#utxop.script)).
 
 input_to_ic(Input) ->
 	crypto:hash(ripemd160, crypto:hash(sha256, Input#btxin.script)).
+
+script_to_ic(Script) when is_binary(Script) ->
+    crypto:hash(ripemd160, crypto:hash(sha256, Script)).
 
 hash160(ColorAtom) when is_atom(ColorAtom) -> ColorAtom;
 hash160(Color) when is_list(Color) ->
@@ -365,6 +406,15 @@ build_color_list(Inputs, GetFun) ->
 colors(Unspents) ->
 	sets:to_list(lists:foldl(fun(E, Acc) ->
 				sets:add_element(E#utxop.color, Acc) end, sets:new(), Unspents)).
+
+readable_colors(Unspents) ->
+	sets:to_list(lists:foldl(fun(E, Acc) ->
+				sets:add_element(readable(E#utxop.color), Acc) end, sets:new(), Unspents)).
+
+readable_issue_colors(Unspents) ->
+	dict:to_list(lists:foldl(fun(E, Acc) ->
+                    dict:store(readable(unspent_to_ic(E)),
+                                      lib_address:readable(E), Acc) end, dict:new(), Unspents)).
 
 % This is so that like colors are stacked
 % uncolored outputs feature last in coloring

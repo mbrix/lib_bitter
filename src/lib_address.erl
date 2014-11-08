@@ -50,7 +50,8 @@
 
 -export([new/1, new/2, new/3, new/4,
 	     equal/2, equal/3, equal/4,
-	     type/1, hash160/1, script/1, readable/1]).
+	     type/1, hash160/1, script/1, readable/1,
+	     issue_color/1]).
 
 -include_lib("bitter.hrl").
 -include_lib("eunit/include/eunit.hrl").
@@ -138,7 +139,11 @@ readable(Addr) when is_record(Addr, addr) ->
 	end;
 
 readable(Addr) when is_list(Addr) ->
-	Addr.
+	Addr;
+
+readable(Unspent) when is_record(Unspent, utxop) ->
+    A = new(Unspent#utxop.script),
+    readable(A).
 
 script(Addr) when is_record(Addr, addr) ->
 	create_script(Addr#addr.type, Addr#addr.bin).
@@ -148,7 +153,8 @@ create_script(p2pkh, Bin) ->
 create_script(p2sh, Bin) ->
 	<<?OP_HASH160:8, 16#14:8, Bin:160/bitstring, ?OP_EQUAL:8>>.
 
-
+issue_color(Addr) when is_record(Addr, addr) ->
+    lib_color:new(lib_color:script_to_ic(script(Addr))).
 
 
 % Address is a raw 20 bit hash160 address

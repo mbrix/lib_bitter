@@ -26,7 +26,7 @@
 -author('mbranton@emberfinancial.com').
 % Block Record Formats
 -define(COINBASE, <<0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0>>).
--define(DUSTLIMIT, 600).
+-define(DUSTLIMIT, 5460).
 -define(DEFAULTFEE, 10000).
 -define(FEE_PER_K, 5000).
 -define(SIGHASH_NONE, 0).
