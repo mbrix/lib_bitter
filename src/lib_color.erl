@@ -57,7 +57,9 @@
 	     hash160/1,
 	     find_spend_color/2,
 	     new_spend_color/1,
-	     script_to_ic/1]).
+	     script_to_ic/1,
+	     validate/1,
+	     is_color_address/1]).
 
 % testing
 -export([create_marker_output/1]).
@@ -79,21 +81,35 @@ val(Name, Map) ->
 	end.
 
 parse_color(Map) ->
-	case val(<<"source_addresses">>, Map) of
+	case val(<<"asset_ids">>, Map) of
 		X when is_list(X) ->
 			[C|_] = X,
 			hash160(C);
 		_ ->
-			null
+		    case val(<<"source_addresses">>, Map) of
+		        X when is_list(X) ->
+		            [C|_] = X,
+		            hash160(C);
+		        _ ->
+		            null
+            end
 	end.
 
 source_list(Color) ->
 	[erlang:list_to_binary(readable(Color))].
 
+
+get_asset_ids(D) ->
+    case val(<<"source_addresses">>, D) of
+        null -> val(<<"asset_ids">>, D);
+        N -> N
+    end.
+
 from_json(Definition) ->
 	D = jiffy:decode(Definition, [return_maps]),
 	#color{name = val(<<"name">>, D),
-		   bin  = parse_color(D),
+	    bin  = parse_color(D),
+		asset_ids = get_asset_ids(D), 
 		contract_url = val(<<"contract_url">>, D),
 		short_name = val(<<"name_short">>, D),
 		issuer = val(<<"issuer">>, D),
@@ -108,7 +124,7 @@ from_json(Definition) ->
 
 to_json(Color) when is_record(Color, color) ->
 	jiffy:encode(#{<<"name">> => Color#color.name,
-			       <<"source_addresses">> => source_list(Color),
+			       <<"asset_ids">> => source_list(Color),
 			       <<"contract_url">> => Color#color.contract_url,
 			       <<"name_short">> => Color#color.short_name,
 			       <<"issuer">> => Color#color.issuer,
@@ -120,6 +136,17 @@ to_json(Color) when is_record(Color, color) ->
 			<<"icon_url">> => Color#color.icon_url,
 			<<"image_url">> => Color#color.image_url,
 			<<"version">> => Color#color.version}).
+
+validate(Color) when is_record(Color, color) ->
+    validate_field(asset_ids, Color#color.asset_ids),
+    validate_field(name_short, Color#color.short_name),
+    validate_field(name, Color#color.name).
+
+validate_field(_, null) ->
+    throw(color_record_validation_error);
+validate_field(asset_ids, Assets) when is_list(Assets) ->
+    ok;
+validate_field(_, _) -> ok.
 
 % Open Assets Color Support
 %
@@ -365,10 +392,10 @@ script_to_ic(Script) when is_binary(Script) ->
 
 hash160(ColorAtom) when is_atom(ColorAtom) -> ColorAtom;
 hash160(Color) when is_list(Color) ->
-	lib_address:address_to_hash160(Color);
+    color_address(Color);
 hash160(Color) when is_binary(Color) ->
 	try
-		lib_address:address_to_hash160(erlang:binary_to_list(Color))
+        color_address(erlang:binary_to_list(Color))
 	catch
 		_:_ -> Color
 	end;
@@ -381,7 +408,18 @@ readable(IssueColor) when is_atom(IssueColor) -> IssueColor;
 readable(IssueColor) when is_record(IssueColor, color) ->
 	readable(IssueColor#color.bin);
 readable(IssueColor) ->
-	lib_address:p2sh_hash160_to_address(IssueColor).
+    lib_address:base58_check(<<23:8>>, IssueColor).
+
+color_address(ColorAddress) when is_list(ColorAddress) ->
+    case lib_address:checksum(23, ColorAddress) of
+        true -> lib_address:address_to_hash160(ColorAddress);
+        false -> 
+            % Original Open asset spec
+            case lib_address:checksum(5, ColorAddress) of
+                true -> lib_address:address_to_hash160(ColorAddress);
+                false -> throw(color_address_checksum_error)
+            end
+    end.
 
 uncolor_all(O) ->
 	lists:map(fun(R) -> R#btxout{color=?Uncolored, quantity=0} end, O).
@@ -400,6 +438,10 @@ build_color_list(Inputs, GetFun) ->
 	catch _:_ ->
 			throw(coloring_error)
 	end.
+
+% Is New Style color address
+is_color_address(Address) when is_list(Address) ->
+    lib_address:checksum(23, Address).
 	
 
 % Generate list of unique colors

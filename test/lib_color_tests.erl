@@ -743,10 +743,10 @@ parse_definition() ->
   ?assertEqual(<<"blahtest">>, Color#color.name).
 
 serialize_color() ->
-  Def = lib_test:data("exampleasset2.json"),
-  Color = lib_color:from_json(Def),
-  Json = lib_color:to_json(Color),
-	?assertEqual(Def, erlang:iolist_to_binary([Json, "\n"])).
+    Def = lib_test:data("exampleasset2.json"),
+    Color = lib_color:from_json(Def),
+    Json = lib_color:to_json(Color),
+    ?assertEqual(Def, erlang:iolist_to_binary([Json, "\n"])).
 
 get_marker() ->
 	% Just return the raw marker from a set of outputs..
@@ -793,6 +793,16 @@ get_meta_url() ->
 			create_output(?Uncolored, 0, 3)],
 	M = lib_color:meta_url(O),
 	?assertMatch("https://cpr.sm/ziL7oMhHos", M).
+
+new_addresses() ->
+    C = lib_color:new("ALn3aK1fSuG27N96UGYB1kUYUpGKRhBuBC"),
+    ?assertEqual("ALn3aK1fSuG27N96UGYB1kUYUpGKRhBuBC", lib_color:readable(C)),
+    D = lib_color:new("3QzJDrSsi4Pm2DhcZFXR9MGJsXXtsYhUsq"),
+    ?assertEqual("Af59wop4VJjXk2DAzoX9scAUCcAsghPHFX", lib_color:readable(D)).
+
+is_color_address() ->
+    ?assertEqual(true, lib_color:is_color_address("Af59wop4VJjXk2DAzoX9scAUCcAsghPHFX")),
+    ?assertEqual(false, lib_color:is_color_address("Af59wop4VJjXk2DAzoX9scAUCcAblahah")).
 
 % Issue and transfer from coinprism broke
 % These are the raw transactions in the transaction chain
@@ -881,7 +891,9 @@ color_test_() ->
 		{"Serialize color def to definition", fun serialize_color/0},
 	    {"Grab the marker from outputs", fun get_marker/0},
 	    {"Get metadata from outputs", fun get_meta/0},
-	    {"Get metadata URL", fun get_meta_url/0}
+	    {"Get metadata URL", fun get_meta_url/0},
+	    {"New style addresses", fun new_addresses/0},
+	    {"New address check", fun is_color_address/0}
 %	    {"Coinprism issue", fun coinprism_broke/0}
    ]
   }.

@@ -103,7 +103,7 @@
 -record(addr, {type, bin}).
 
 % Color Format
--record(color, {bin, name, contract_url, short_name, issuer, description, mime_type, type, divisibility, link_to_website, icon_url, image_url, version}).
+-record(color, {bin, name, asset_ids, contract_url, short_name, issuer, description, mime_type, type, divisibility, link_to_website, icon_url, image_url, version}).
 
 
 % Config information

@@ -133,6 +133,10 @@ failed_checksum2() ->
     Address = "33PfEm7Bo2KhJVuZxEN3v7S6SPcrhvzJKq",
     ?assertException(throw, address_error, lib_address:new(Address)).
 
+color_identifier() ->
+    ColorAddress = "ALn3aK1fSuG27N96UGYB1kUYUpGKRhBuBC",
+    ?assertEqual(true, lib_address:checksum(23, ColorAddress)). 
+
 address_test_() -> 
   {foreach,
   fun start/0,
@@ -151,7 +155,8 @@ address_test_() ->
             {"Open assets address", fun openasset_address/0},
 		    {"New open assets address", fun openasset_new/0},
 		    {"Failed checksum", fun failed_checksum/0},
-		    {"Failed checksum p2sh", fun failed_checksum2/0}
+		    {"Failed checksum p2sh", fun failed_checksum2/0},
+		    {"Color id checksum", fun color_identifier/0}
    ]
   }.
 

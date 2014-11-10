@@ -47,11 +47,22 @@
 		 p2sh_redeemscript_hash/1,
 	     script_to_hash160/1,
 	     verify_keypair/2,
-	     openassets/1]).
+	     openassets/1,
+	     checksum/1,
+	     checksum/2,
+	     base58_check/2]).
 
--export([new/1, new/2, new/3, new/4,
-	     equal/2, equal/3, equal/4,
-	     type/1, hash160/1, script/1, readable/1,
+-export([new/1,
+         new/2,
+         new/3,
+         new/4,
+	     equal/2,
+	     equal/3,
+	     equal/4,
+	     type/1,
+	     hash160/1,
+	     script/1,
+	     readable/1,
 	     issue_color/1]).
 
 -include_lib("bitter.hrl").
@@ -205,6 +216,14 @@ base58_check(V, Script) ->
 			crypto:hash(sha256, iolist_to_binary([V, Script]))), 
 	A = iolist_to_binary([V, Script, C]),
 	base58:binary_to_base58(A).
+
+checksum(LeadingByte, Address) ->
+    try
+        <<LeadingByte:8, _Rest/binary>> = base58:base58_to_binary(Address),
+        checksum(Address)
+    catch
+        _:_ -> false
+    end.
 
 checksum(Address) ->
     <<ChecksumR:32/bitstring, R/binary>> = hex:bin_reverse(base58:base58_to_binary(Address)),
