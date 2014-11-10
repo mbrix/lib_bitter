@@ -39,6 +39,7 @@
 	     payee/0,
 	     payee/4,
 	     payment/0,
+	     payment/1,
 	     finalize/3,
 	     issue/3,
 	     issue/2,
@@ -105,6 +106,11 @@ payment() ->
 		     outputs=[],
 		     issuances=0}.
 
+payment(Color) ->
+    #payment{selected=[],
+             outputs=[],
+             issuances=0,
+             r_color = lib_color:hash160(Color)}.
 
 % Add an issuance to a payment
 % BTC change will flow back on
@@ -119,11 +125,14 @@ issue(Payment, Unspent = #utxop{color = ?Uncolored}, Payee) ->
 	if Payment#payment.issuances =/= 0 ->
 			throw(issue_error);
 	   true ->
+	        O = create_output(
+						Payee#payee{color=lib_color:get_issue_color_unspents([Unspent])}),
 	   		Payment#payment{selected=[Unspent|Payment#payment.selected],
 	   		                issuances=1,
 	   		                outputs = Payment#payment.outputs ++
-	   		    			[create_output(
-						Payee#payee{color=lib_color:get_issue_color_unspents([Unspent])})]}
+	   		    			[O],
+	   		    	        r_value = Unspent#utxop.value - O#btxout.value,
+	   		    	        r_color = ?Uncolored}
 	end;
 
 % Let's simplify this and not use colored unspents
@@ -136,11 +145,12 @@ issue(Payment, Payee) ->
 	if Payment#payment.issuances =:= 0 ->
 			throw(issue_error);
 	true ->
-		Payment#payment{issuances = Payment#payment.issuances + 1,
-			outputs = Payment#payment.outputs ++
-			[create_output(
+	        O = create_output(
 				Payee#payee{
-							color=lib_color:get_issue_color_unspents(Payment#payment.selected)})]}
+							color=lib_color:get_issue_color_unspents(Payment#payment.selected)}),
+		Payment#payment{issuances = Payment#payment.issuances + 1,
+			outputs = Payment#payment.outputs ++ [O],
+			r_value = Payment#payment.r_value - O#btxout.value}
 	end.			
 
 pay(Payment, Unspents, []) ->
@@ -224,7 +234,7 @@ check_value(P) ->
 	BTCFee = BTCincluded - BTCspent,
 	if BTCFee < 5*?DEFAULTFEE -> P;
 	   true -> 
-		    ?debugFmt("~p ~p ~n", [BTCspent, BTCincluded]),
+		    ?debugFmt("checkvalue: ~p ~p ~n", [BTCspent, BTCincluded]),
 	   		throw(insufficient_funds)
 	end.
 
@@ -258,6 +268,8 @@ make_outputs(Unspents,
 			throw(insufficient_funds)
 	end.
 
+finish_color(#payment{r_color=?Uncolored}=P) ->
+    P;
 finish_color(P) when is_record(P, payment) ->
 	P#payment{outputs=create_change_output(P, P#payment.outputs),
 		      change=undefined,
@@ -275,7 +287,8 @@ add_change(P, Unspents, Change) when is_record(P, payment),
 	   BTCspent > BTCneeded ->
 			% Need to return some of this to Change
 			Diff = BTCspent - BTCneeded,
-			{Unspents, P#payment{outputs = create_change_output(Change, Diff, P#payment.outputs)}};
+			add_payee(P, Unspents, payee(Change, Change, ?Uncolored, Diff), false);
+			%{Unspents, P#payment{outputs = create_change_output(Change, Diff, P#payment.outputs)}};
 	   BTCspent < BTCneeded ->
 	   		Diff = BTCneeded - BTCspent,
 	   		% Not enough BTC to cover fees
@@ -301,10 +314,10 @@ create_change_output(P, O) when is_record(P, payment) ->
 		P#payment.r_color, P#payment.r_value,
 			P#payment.change#addr.bin)|O].
 
-create_change_output(P, Value, O) when is_record(P, addr) ->
-	[lib_tx:create_output(lib_address:type(P),
-		?Uncolored, Value,
-		P#addr.bin)|O].
+%create_change_output(P, Value, O) when is_record(P, addr) ->
+%	[lib_tx:create_output(lib_address:type(P),
+%		?Uncolored, Value,
+%		P#addr.bin)|O].
 
 create_output(P) when is_record(P, payee) ->
 	lib_tx:create_output(lib_address:type(P#payee.address),
@@ -368,6 +381,9 @@ get_inputs(list,
 		   UnspentList,
 		   Payee = #payee{color=?Uncolored},
 	       Remainder) ->
+    %?debugFmt("get uncolor inputs~n", []),
+    %?debugFmt("Pcolor: ~p ~n", [?Uncolored]),
+    %?debugFmt("U: ~p~n", [UnspentList]),
 	lists:foldl(fun(U, {UL, SL, Total}) ->
 				case U#utxop.color of
 				    ?Uncolored ->
@@ -384,10 +400,14 @@ get_inputs(list,
 		   UnspentList,
 		   Payee,
 	       Remainder) ->
+    %?debugFmt("get color inputs~n", []),
+    %?debugFmt("Pcolor: ~p ~n", [Payee#payee.color]),
+    %?debugFmt("U: ~p~n", [UnspentList]),
 	PColor = Payee#payee.color,
 	lists:foldl(fun(U, {UL, SL, Total}) ->
 				case U#utxop.color of
 					PColor ->
+					    %?debugFmt("COlor quant: ~p~n", [U#utxop.quantity]),
 						if Total =< Payee#payee.value ->
 								{UL, [U|SL], Total + U#utxop.quantity};
 				   			true ->
