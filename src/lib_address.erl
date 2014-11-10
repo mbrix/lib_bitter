@@ -46,7 +46,8 @@
 	     p2sh_redeemscript/1,
 		 p2sh_redeemscript_hash/1,
 	     script_to_hash160/1,
-	     verify_keypair/2]).
+	     verify_keypair/2,
+	     openassets/1]).
 
 -export([new/1, new/2, new/3, new/4,
 	     equal/2, equal/3, equal/4,
@@ -69,16 +70,14 @@ new(Script) when is_binary(Script) ->
 
 new(Address) when is_list(Address) ->
     try
-	    <<X:8, _/binary>> = erlang:list_to_binary(Address),
-	    BinAddress = address_to_hash160(Address),
-	    case X of
-	    	$1 ->
-	    		#addr{type = p2pkh,
-	    			  bin = BinAddress};
-	    	$3 ->
-	    		#addr{type = p2sh,
-	    			  bin = BinAddress}
-	    end
+        case checksum(Address) of
+            true ->
+                {Type, Bin} = address_hashtype(Address),
+                #addr{type = Type,
+                      bin = Bin};
+            false ->
+                throw(address_error)
+        end
     catch
         _:_ -> throw(address_error)
     end;
@@ -139,11 +138,28 @@ readable(Addr) when is_record(Addr, addr) ->
 	end;
 
 readable(Addr) when is_list(Addr) ->
-	Addr;
+    A = new(Addr),
+	readable(A);
 
 readable(Unspent) when is_record(Unspent, utxop) ->
     A = new(Unspent#utxop.script),
     readable(A).
+
+openassets(Addr) when is_record(Addr, addr) ->
+    case Addr#addr.type of
+        p2pkh ->
+            hash160_to_openassets(Addr#addr.bin);
+        p2sh ->
+            p2sh_hash160_to_openassets(Addr#addr.bin)
+    end;
+
+openassets(Addr) when is_list(Addr) ->
+    A = new(Addr),
+    openassets(A);
+
+openassets(Unspent) when is_record(Unspent, utxop) ->
+    A = new(Unspent#utxop.script),
+    openassets(A).
 
 script(Addr) when is_record(Addr, addr) ->
 	create_script(Addr#addr.type, Addr#addr.bin).
@@ -164,6 +180,22 @@ address_type(L) when is_list(L) ->
 address_type(<<$1:8, _/binary>>) -> p2pkh;
 address_type(<<$3:8, _/binary>>) -> p2sh.
 
+address_hashtype(Address) ->
+    <<Type:8/bitstring, Rest/binary>> = base58:base58_to_binary(Address),
+    address_hashtype(Type, Rest).
+
+address_hashtype(<<0:8>>, BinAddress) ->
+    <<K:160/bitstring, _/binary>> = BinAddress,
+    {p2pkh, K};
+
+address_hashtype(<<5:8>>, BinAddress) ->
+    <<K:160/bitstring, _/binary>> = BinAddress,
+    {p2sh, K};
+
+address_hashtype(<<19:8>>, BinAddress) ->
+    <<Type:8/bitstring, Rest/binary>> = BinAddress,
+    address_hashtype(Type, Rest).
+
 address_to_hash160(Address) ->
 	<<_:8, K:160/bitstring, _/binary>> = base58:base58_to_binary(Address),
 	K.
@@ -174,11 +206,22 @@ base58_check(V, Script) ->
 	A = iolist_to_binary([V, Script, C]),
 	base58:binary_to_base58(A).
 
+checksum(Address) ->
+    <<ChecksumR:32/bitstring, R/binary>> = hex:bin_reverse(base58:base58_to_binary(Address)),
+    <<Checksum:32/bitstring, _/binary>> = crypto:hash(sha256, crypto:hash(sha256, hex:bin_reverse(R))),
+    Checksum =:= hex:bin_reverse(ChecksumR).
+
 hash160_to_address(Script) when is_binary(Script) ->
 	base58_check(<<0:8>>, Script).
 
 p2sh_hash160_to_address(Script) when is_binary(Script) ->
 	base58_check(<<5:8>>, Script).
+
+hash160_to_openassets(Script) when is_binary(Script) ->
+    base58_check([<<19:8>>, <<0:8>>], Script).
+
+p2sh_hash160_to_openassets(Script) when is_binary(Script) ->
+    base58_check([<<19:8>>, <<5:8>>], Script).
 
 p2sh_script_to_address(Script) ->
 	p2sh_hash160_to_address(script_to_hash160(Script)).

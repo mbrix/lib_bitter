@@ -115,22 +115,43 @@ redeemscript() ->
 	?assertEqual(2, M),
 	?assertEqual(2, N).
 
+openasset_address() ->
+    Address = "16UwLL9Risc3QfPqBUvKofHmBQ7wMtjvM",
+    OpenAssetsAddress = "akB4NBW9UuCmHuepksob6yfZs6naHtRCPNy",
+    A = lib_address:new(Address),
+    ?assertEqual(OpenAssetsAddress, lib_address:openassets(A)).
+
+openasset_new() ->
+    Address = lib_address:new("akB4NBW9UuCmHuepksob6yfZs6naHtRCPNy"),
+    ?assertEqual("16UwLL9Risc3QfPqBUvKofHmBQ7wMtjvM", lib_address:readable(Address)).
+
+failed_checksum() ->
+    Address = "16UwLL9Risc3QfPqBUvKofHmBQ7wMtjvm",
+    ?assertException(throw, address_error, lib_address:new(Address)).
+
+failed_checksum2() ->
+    Address = "33PfEm7Bo2KhJVuZxEN3v7S6SPcrhvzJKq",
+    ?assertException(throw, address_error, lib_address:new(Address)).
 
 address_test_() -> 
   {foreach,
   fun start/0,
   fun stop/1,
    [
-		{"Private to WIF", fun private_wif/0},
-		{"WIF to Private", fun wif_private/0},
-		{"Public to address", fun public_to_address/0},
-		{"Address types", fun address_type/0},
-		{"P2sh addressing", fun p2sh_addressing/0},
-		{"New style addressing", fun new_addresses/0},
-		{"Verify keypair", fun verify_keypair/0},
-		{"Verify keypair compressed", fun verify_keypair_compressed/0},
-		{"Verify Mixed encryption", fun verify_mixed/0},
-		{"Redeem script", fun redeemscript/0}
+            {"Private to WIF", fun private_wif/0},
+            {"WIF to Private", fun wif_private/0},
+            {"Public to address", fun public_to_address/0},
+            {"Address types", fun address_type/0},
+            {"P2sh addressing", fun p2sh_addressing/0},
+            {"New style addressing", fun new_addresses/0},
+            {"Verify keypair", fun verify_keypair/0},
+            {"Verify keypair compressed", fun verify_keypair_compressed/0},
+            {"Verify Mixed encryption", fun verify_mixed/0},
+            {"Redeem script", fun redeemscript/0},
+            {"Open assets address", fun openasset_address/0},
+		    {"New open assets address", fun openasset_new/0},
+		    {"Failed checksum", fun failed_checksum/0},
+		    {"Failed checksum p2sh", fun failed_checksum2/0}
    ]
   }.
 
