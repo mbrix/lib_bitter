@@ -819,6 +819,29 @@ is_color_address() ->
     ?assertEqual(true, lib_color:is_color_address("Af59wop4VJjXk2DAzoX9scAUCcAsghPHFX")),
     ?assertEqual(false, lib_color:is_color_address("Af59wop4VJjXk2DAzoX9scAUCcAblahah")).
 
+
+%% Validate color records
+validate_color() ->
+    A = #color{},
+    ?assertThrow(color_record_validation_error, lib_color:validate(A)),
+    B = #color{asset_ids=[], short_name="short", name="short_test"},
+    ?assertThrow(color_record_validation_error, lib_color:validate(B)),
+    C = #color{asset_ids=["Af59wop4VJjXk2DAzoX9scAUCcAsghPHFX",
+                          "3QzJDrSsi4Pm2DhcZFXR9MGJsXXtsYhUsq"],
+               short_name="Short",
+               name="Short_test"},
+    ?assertEqual(true, lib_color:validate(C)),
+    D = #color{asset_ids=["Af59wop4VJjXk2DAzoX9scAUCcAsghPHFX",
+                          "Madeupassetname"],
+               short_name="Short",
+               name="Short_test"},
+    ?assertThrow(color_record_validation_error, lib_color:validate(D)),
+    E = #color{asset_ids=["Af59wop4VJjXk2DAzoX9scAUCcAsghPHFX",
+                          "3QzJDrSsi4Pm2DhcZFXR9MGJsXXtsYhUsq"],
+               short_name="Verylongshortname",
+               name="Short_test"},
+    ?assertThrow(color_record_validation_error, lib_color:validate(E)).
+
 % Issue and transfer from coinprism broke
 % These are the raw transactions in the transaction chain
 
@@ -911,7 +934,8 @@ color_test_() ->
 	    {"Get metadata from outputs", fun get_meta/0},
 	    {"Get metadata URL", fun get_meta_url/0},
 	    {"New style addresses", fun new_addresses/0},
-	    {"New address check", fun is_color_address/0}
+	    {"New address check", fun is_color_address/0},
+	    {"Validate color recs", fun validate_color/0}
 %	    {"Coinprism issue", fun coinprism_broke/0}
    ]
   }.

@@ -151,13 +151,30 @@ to_json(Color) when is_record(Color, color) ->
 validate(Color) when is_record(Color, color) ->
     validate_field(asset_ids, Color#color.asset_ids),
     validate_field(name_short, Color#color.short_name),
-    validate_field(name, Color#color.name).
+    validate_field(name, Color#color.name),
+    true.
 
 validate_field(_, null) ->
     throw(color_record_validation_error);
+validate_field(asset_ids, []) ->
+    throw(color_record_validation_error);
 validate_field(asset_ids, Assets) when is_list(Assets) ->
-    ok;
-validate_field(_, _) -> ok.
+    try
+        lists:foreach(fun(E) -> color_address(E) end, Assets),
+        true
+    catch
+        _:_ -> throw(color_record_validation_error)
+    end;
+validate_field(name_short, Name) when is_list(Name), length(Name) > 10 ->
+    throw(color_record_validation_error);
+validate_field(name_short, "") ->
+    throw(color_record_validation_error);
+validate_field(name_short, _) -> true;
+validate_field(name, "") ->
+    throw(color_record_validation_error);
+validate_field(name, _) ->
+    true;
+validate_field(_, _) -> throw(color_record_validation_error).
 
 % Open Assets Color Support
 %
