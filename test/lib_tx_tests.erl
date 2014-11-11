@@ -221,6 +221,20 @@ signed() ->
 	N7 = lib_tx:add_output(N6, lib_test:create_random_output()),
 	?assertEqual(false, lib_tx:is_signed(N7)).
 
+pushdata_vs_varint() ->
+    A = lib_tx:int_to_pushdata(10),
+    ?assertMatch([10,_], lib_tx:pushdata_to_int(A)),
+    B = lib_tx:int_to_pushdata(76),
+    ?assertMatch([76,_], lib_tx:pushdata_to_int(B)),
+    C = lib_tx:int_to_pushdata(253),
+    ?assertMatch([253,_], lib_tx:pushdata_to_int(C)),
+    D = lib_tx:int_to_pushdata(65535),
+    ?assertMatch([65535,_], lib_tx:pushdata_to_int(D)),
+    E = lib_tx:int_to_pushdata(4294967294),
+    ?assertMatch([4294967294,_], lib_tx:pushdata_to_int(E)),
+    F = lib_tx:int_to_pushdata(4294967296),
+    ?assertMatch(error, lib_tx:pushdata_to_int(F)).
+
 
 tx_test_() -> 
   {foreach,
@@ -235,7 +249,8 @@ tx_test_() ->
 	    {"Change input script", fun change_input_script/0},
 	    {"Human/Hex conversion", fun readable_serial/0},
 	    {"Redeemscript parse", fun redeemscript_parse/0},
-	    {"Signed test", fun signed/0}
+	    {"Signed test", fun signed/0},
+	    {"Pushdata vs varint", fun pushdata_vs_varint/0}
    ]
   }.
 

@@ -479,6 +479,12 @@ marker_reverse() ->
 	B = lib_parse:parse_script(A#btxout.script),
 	?assertEqual({openassets, {[23000], <<>>}}, B).
 
+% Value in marker exceed maximum allowed leb128 quant
+marker_toobig() ->
+    A = lib_color:create_marker_output([100, 10, 9223372036854775808, 1000]),
+    B = lib_parse:parse_script(A#btxout.script),
+	?assertMatch({malformed_openassets, _}, B).
+
 % Interleave colored and ?Uncolored outputs
 % I'm duplicating inputs here, wouldn't normally happen
 interleave() ->
@@ -742,6 +748,15 @@ parse_definition() ->
   Color = lib_color:from_json(Def),
   ?assertEqual(<<"blahtest">>, Color#color.name).
 
+includes_color() ->
+    Def = lib_test:data("exampleasset.json"),
+    Color = lib_color:from_json(Def),
+    ?assertEqual(true, lib_color:includes(Color, "3LT1JUt54hEnqZERBf3r1HLpNMQTqCbwEa")).
+
+new_colors() ->
+    C = lib_color:new("3LT1JUt54hEnqZERBf3r1HLpNMQTqCbwEa"),
+    ?assertEqual(C, lib_color:new(C)).
+
 serialize_color() ->
     Def = lib_test:data("exampleasset2.json"),
     Color = lib_color:from_json(Def),
@@ -876,6 +891,7 @@ color_test_() ->
 		{"Wallet color quantity", fun color_quantity/0},
 		{"Color aggregate payees", fun color_aggregate/0},
 		{"Encode and Decode marker", fun marker_reverse/0},
+		{"Marker too big", fun marker_toobig/0},
 		{"Interleave colored and ?Uncolored", fun interleave/0},
 		{"Partial Interleave", fun partial_interleave/0},
 		{"Uncolored issue and transfer", fun uncolored_issue_transfer/0},
@@ -888,6 +904,8 @@ color_test_() ->
 		{"Create and compare", fun create_and_compare/0},
 		{"Grab unique color list", fun colors/0},
 		{"Parse color definition to color def", fun parse_definition/0},
+		{"Includes color in asset ids", fun includes_color/0},
+		{"New Color constructors", fun new_colors/0},
 		{"Serialize color def to definition", fun serialize_color/0},
 	    {"Grab the marker from outputs", fun get_marker/0},
 	    {"Get metadata from outputs", fun get_meta/0},

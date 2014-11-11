@@ -59,7 +59,8 @@
 	     new_spend_color/1,
 	     script_to_ic/1,
 	     validate/1,
-	     is_color_address/1]).
+	     is_color_address/1,
+	     includes/2]).
 
 % testing
 -export([create_marker_output/1]).
@@ -101,9 +102,19 @@ source_list(Color) ->
 
 get_asset_ids(D) ->
     case val(<<"source_addresses">>, D) of
-        null -> val(<<"asset_ids">>, D);
+        null ->
+            case val(<<"asset_ids">>, D) of
+                null -> [];
+                A -> A
+            end;
         N -> N
     end.
+
+includes(ColorRec, Color) when is_record(ColorRec, color) ->
+    C = hash160(new(Color)),
+    A = lists:map(fun(E) -> hash160(E) end, ColorRec#color.asset_ids),
+    lists:any(fun(E) -> E =:= C end, A).
+
 
 from_json(Definition) ->
 	D = jiffy:decode(Definition, [return_maps]),
@@ -167,6 +178,9 @@ new() ->
 new(uncolored) ->
     #color{name = "Uncolored",
            bin = ?Uncolored};
+
+new(Color) when is_record(Color, color) ->
+    Color;
 
 % Used by test code
 new(ColorAtom) when is_atom(ColorAtom) ->
@@ -473,7 +487,7 @@ encode_marker(M) ->
 	lists:map(fun(E) -> leb128:encode(E, unsigned) end, M),
 				lib_tx:int_to_varint(0)]),
 	erlang:iolist_to_binary([<<?OP_RETURN>>,
-			lib_tx:int_to_varint(size(OA)), OA]).
+			lib_tx:int_to_pushdata(size(OA)), OA]).
 
 
 create_marker_output(M) when is_list(M) ->

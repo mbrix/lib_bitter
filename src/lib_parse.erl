@@ -142,18 +142,29 @@ parse_script(<<?OP_RETURN, B/binary>>) ->
 			parse_script_2(B);
 		[Length,R] ->
 			try parse_openassets(Length, R) of
-				{openassets, Result} ->
-					{openassets, Result};
-				notopenassets ->
-					parse_script_2(B)
+				{openassets, Result} -> {openassets, Result};
+				notopenassets -> parse_pushdata_script(B)
 			catch
-				_:_ ->
-					{malformed_openassets, B}
+				_:_ -> {malformed_openassets, B}
 			end
 	end;
 
+
 parse_script(Bin) ->
 	{unrecognized, Bin}.
+
+%% If varint fails we need to try the new pushdata spec
+parse_pushdata_script(B) ->
+    case getPushData(B) of
+		error -> parse_script_2(B);
+		[Length,R] ->
+			try parse_openassets(Length, R) of
+				{openassets, Result} -> {openassets, Result};
+				notopenassets -> parse_script_2(B)
+			catch
+				_:_ -> {malformed_openassets, B}
+			end
+    end.
 
 strip_info_result({openassets, B}) ->
 	{openassets,B};
@@ -172,7 +183,11 @@ parse_oa_qlist(0, B, Acc) ->
 	{lists:reverse(Acc), B};
 parse_oa_qlist(Q, B, Acc) ->
 	{Value, Tail} = leb128:decode(B, unsigned),
-	parse_oa_qlist(Q-1, Tail, [Value|Acc]).
+	if Value > 9223372036854775807 ->
+	        throw(marker_invalid);
+	    true ->
+	        parse_oa_qlist(Q-1, Tail, [Value|Acc])
+    end.
 
 parse_oa_metadata(B) ->
 	[MetaLength, R] = getVarInt(B),
@@ -182,6 +197,12 @@ parse_oa_metadata(B) ->
 
 parse_script_2(B) ->
 	{op_return, B}.
+
+getPushData(<< TXCount:8, BinRest/binary >>) when TXCount < 76 -> [TXCount, BinRest];
+getPushData(<< ?OP_PUSHDATA1:8, TXCount:8/little, BinRest/binary >>) -> [TXCount, BinRest];
+getPushData(<< ?OP_PUSHDATA2:8, TXCount:16/little, BinRest/binary >>) -> [TXCount, BinRest];
+getPushData(<< ?OP_PUSHDATA4:8, TXCount:32/little, BinRest/binary >>) -> [TXCount, BinRest];
+getPushData(_) -> error.
 
 getVarInt(<< TXCount:8, BinRest/binary >>) when TXCount < 253 -> [TXCount, BinRest];
 getVarInt(<< 253:8, TXCount:16/little, BinRest/binary >>) -> [TXCount, BinRest];

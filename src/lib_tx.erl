@@ -29,6 +29,8 @@
 
 -export([int_to_varint/1,
 	     varint_to_int/1,  %duped code
+	     int_to_pushdata/1,
+	     pushdata_to_int/1,
 	     serialize/1,
 	     serialize_btxdef/1,
 	     create_tx/0,
@@ -478,16 +480,35 @@ serialize_outputs(O) ->
 	int_to_varint(ScriptLength),
 	<<Script:BitLength/bitstring>>].
 
+
+%% varint
+
 int_to_varint(Int) when Int < 253 -> <<Int:8/little>>;
 int_to_varint(Int) when Int =< 65535 -> <<253:8, Int:16/little>>;
 int_to_varint(Int) when Int =< 4294967295 -> <<254:8, Int:32/little>>;
-int_to_varint(Int) when Int > 4294967295  -> <<255:8, Int:64/little>>.
+int_to_varint(Int) when Int > 4294967295  -> <<255:8, Int:64/little>>;
+int_to_varint(_) -> error.
 
 varint_to_int(<< TXCount:8, BinRest/binary >>) when TXCount < 253 -> [TXCount, BinRest];
 varint_to_int(<< 253:8, TXCount:16/little, BinRest/binary >>) -> [TXCount, BinRest];
 varint_to_int(<< 254:8, TXCount:32/little, BinRest/binary >>) -> [TXCount, BinRest];
 varint_to_int(<< 255:8, TXCount:64/little, BinRest/binary >>) -> [TXCount, BinRest];
 varint_to_int(_) -> error.
+
+%% pushdata
+
+int_to_pushdata(Int) when Int < 76 -> <<Int:8/little>>;
+int_to_pushdata(Int) when Int =< 255 -> <<?OP_PUSHDATA1:8, Int:8/little>>;
+int_to_pushdata(Int) when Int =< 65535 -> <<?OP_PUSHDATA2:8, Int:16/little>>;
+int_to_pushdata(Int) when Int =< 4294967295 -> <<?OP_PUSHDATA4:8, Int:32/little>>;
+int_to_pushdata(_) -> error.
+
+pushdata_to_int(<< TXCount:8, BinRest/binary >>) when TXCount < 76 -> [TXCount, BinRest];
+pushdata_to_int(<< ?OP_PUSHDATA1:8, TXCount:8/little, BinRest/binary >>) -> [TXCount, BinRest];
+pushdata_to_int(<< ?OP_PUSHDATA2:8, TXCount:16/little, BinRest/binary >>) -> [TXCount, BinRest];
+pushdata_to_int(<< ?OP_PUSHDATA4:8, TXCount:32/little, BinRest/binary >>) -> [TXCount, BinRest];
+pushdata_to_int(_) -> error.
+
 
 % Vector conversion
 vector(V) when is_record(V, btxdef) ->
