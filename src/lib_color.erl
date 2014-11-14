@@ -60,6 +60,7 @@
 	     script_to_ic/1,
 	     validate/1,
 	     is_color_address/1,
+	     color_address/1,
 	     includes/2]).
 
 % testing
@@ -163,7 +164,7 @@ validate_field(asset_ids, Assets) when is_list(Assets) ->
         lists:foreach(fun(E) -> color_address(E) end, Assets),
         true
     catch
-        _:_ -> throw(color_record_validation_error)
+        _:_ ->  throw(color_record_validation_error)
     end;
 validate_field(name_short, Name) when is_list(Name), length(Name) > 10 ->
     throw(color_record_validation_error);
@@ -441,6 +442,8 @@ readable(IssueColor) when is_record(IssueColor, color) ->
 readable(IssueColor) ->
     lib_address:base58_check(<<23:8>>, IssueColor).
 
+color_address(ColorBin) when is_binary(ColorBin) ->
+    color_address(erlang:binary_to_list(ColorBin));
 color_address(ColorAddress) when is_list(ColorAddress) ->
     case lib_address:checksum(23, ColorAddress) of
         true -> lib_address:address_to_hash160(ColorAddress);

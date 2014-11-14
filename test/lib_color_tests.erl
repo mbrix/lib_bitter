@@ -842,6 +842,15 @@ validate_color() ->
                name="Short_test"},
     ?assertThrow(color_record_validation_error, lib_color:validate(E)).
 
+bin_color_address() ->
+    ?assertEqual(lib_color:color_address("ASUAMR8Kqcy3WEgBE7nXVbUwbhK1KMZH8N"),
+                 lib_color:color_address(<<"ASUAMR8Kqcy3WEgBE7nXVbUwbhK1KMZH8N">>)).
+
+json_decode() ->
+    JsonString = "{\r\n  \"asset_ids\": [\r\n    \"ASUAMR8Kqcy3WEgBE7nXVbUwbhK1KMZH8N\"\r\n  ],\r\n  \"contract_url\": null,\r\n  \"name_short\": \"NCK\",\r\n  \"name\": \"ColorMaster\",\r\n  \"issuer\": \"\",\r\n  \"description\": \"\",\r\n  \"description_mime\": \"text/x-markdown; charset=UTF-8\",\r\n  \"type\": \"Points\",\r\n  \"divisibility\": 9,\r\n  \"link_to_website\": false,\r\n  \"icon_url\": null,\r\n  \"image_url\": null,\r\n  \"version\": \"1.0\"\r\n}",
+    A = lib_color:from_json(JsonString),
+    ?assertEqual(true, lib_color:validate(A)).
+
 % Issue and transfer from coinprism broke
 % These are the raw transactions in the transaction chain
 
@@ -935,7 +944,9 @@ color_test_() ->
 	    {"Get metadata URL", fun get_meta_url/0},
 	    {"New style addresses", fun new_addresses/0},
 	    {"New address check", fun is_color_address/0},
-	    {"Validate color recs", fun validate_color/0}
+	    {"Validate color recs", fun validate_color/0},
+	    {"Json decode test", fun json_decode/0},
+	    {"Bin or List color", fun bin_color_address/0}
 %	    {"Coinprism issue", fun coinprism_broke/0}
    ]
   }.

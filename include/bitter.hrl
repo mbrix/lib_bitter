@@ -129,7 +129,9 @@
 % Payment records are transformed into transactions
 % change is the last specified change address
 
--record(payment, {selected=[], outputs=[], change, r_color=?Uncolored, r_value=0, issuances=0, fee=0}).
+-record(payment, {selected=[], outputs=[], change,
+                  r_color=?Uncolored, r_value=0,
+                  issuances=0, fee=0, metaurl=undefined}).
 
 % txpool for tracking transactions submitted to the network
 -record(txpool, {txhash, timestamp, tx}).
