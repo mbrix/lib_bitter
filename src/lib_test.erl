@@ -58,6 +58,7 @@
 	     create_random_output/2,
 		 output_to_unspent/2,
 	     random_p2sh_input/1,
+	     random_unspent/1,
 	     data/1]).
 
 -include_lib("bitter.hrl").
@@ -112,6 +113,19 @@ output_to_unspent(Txhash, O) ->
 		   quantity = O#btxout.quantity,
 		   height = 0,
 	       state = undefined}.
+
+random_unspent(Height) ->
+    Address = create_random_address(),
+	PubkeyBin = lib_address:hash160(Address),
+	Script = lib_tx:create_script(p2pkh, PubkeyBin),
+    #utxop{hash_index = {crypto:rand_bytes(32), random:uniform(1000)},
+           value = random:uniform(100000000),
+           script = Script,
+           info = lib_parse:parse_script(Script),
+           color = ?Uncolored,
+           quantity = 0,
+           height = Height,
+           state = ?Unspent_Confirmed}.
 
 filter_color(uncolored) -> ?Uncolored;
 filter_color(R) -> R.

@@ -84,10 +84,11 @@ verify_signature(Hash, Signature, PublicKey) ->
 % Tx Misc operations
 
 calculate_fee(Tx) when is_binary(Tx) ->
-	Fee = erlang:trunc(size(Tx)/1024)*?FEE_PER_K,
+    NSize = size(Tx)+148,
+    NFee = erlang:trunc(?FEE_PER_K*(NSize / 1000)),
 	if
-		Fee < ?DEFAULTFEE -> ?DEFAULTFEE;
-		true -> Fee + ?DEFAULTFEE
+		NFee < ?DEFAULTFEE -> ?DEFAULTFEE;
+		true -> NFee + ?DEFAULTFEE
 	end;
 calculate_fee(Tx) ->
 	calculate_fee(serialize_btxdef(Tx)).
@@ -156,7 +157,7 @@ sign_input(p2pkh, SigHashType, Tx, Key, Input, KeypairDict, _, Script) ->
 			Signature = create_signature(Hash, PublicKey, PrivateKey),
 			ScriptSig = create_scriptsig(SigHashType, Signature, PublicKey),
 			Input#btxin{script = ScriptSig,
-		    	signed = true};
+			   signed = verify_signature(Hash, Signature, PublicKey)};
 		error ->
 			Input
 	end;
@@ -335,17 +336,30 @@ create_input(I) when is_record(I, btxin) ->
 % Clear input scripts for every input but Input#btxin.txhash
 clear_input_scripts(Tx, Input) ->
 	Hash = Input#btxin.txhash,
+	Index = Input#btxin.txindex,
 	Tx#btxdef{txinputs = lists:map(fun(I) ->
 				case I#btxin.txhash of
 					Hash ->
-						I;
+					    case I#btxin.txindex of
+					            Index -> I;
+                                _ -> I#btxin{script = <<>>}
+                            end;
 					_ ->
 							I#btxin{script = <<>>}
 			end end, Tx#btxdef.txinputs)}.
 
 replace_input_script(Tx, Input, NewScript) ->
-	Tx#btxdef{txinputs = lists:keyreplace(Input#btxin.txhash, #btxin.txhash,
-		             Tx#btxdef.txinputs, Input#btxin{script=NewScript})}.
+	Hash = Input#btxin.txhash,
+	Index = Input#btxin.txindex,
+	Tx#btxdef{txinputs = lists:map(fun(I) ->
+				case I#btxin.txhash of
+					Hash ->
+					    case I#btxin.txindex of
+					            Index -> I#btxin{script = NewScript};
+					            _ -> I
+                            end;
+					_ -> I
+			end end, Tx#btxdef.txinputs)}.
 
 create_script(p2pkh, PubkeyBin) ->
 	<<?OP_DUP:8, ?OP_HASH160:8, 16#14:8, PubkeyBin:160/bitstring, ?OP_EQUALVERIFY:8, ?OP_CHECKSIG:8>>;

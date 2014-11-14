@@ -486,8 +486,12 @@ readable_colors(Unspents) ->
 
 readable_issue_colors(Unspents) ->
 	dict:to_list(lists:foldl(fun(E, Acc) ->
-                    dict:store(readable(unspent_to_ic(E)),
-                                      lib_address:readable(E), Acc) end, dict:new(), Unspents)).
+                    case E#utxop.color of
+                        ?Uncolored ->
+                            dict:store(readable(unspent_to_ic(E)),
+                                      lib_address:readable(E), Acc);
+                        _ -> Acc
+                    end end, dict:new(), Unspents)).
 
 % This is so that like colors are stacked
 % uncolored outputs feature last in coloring

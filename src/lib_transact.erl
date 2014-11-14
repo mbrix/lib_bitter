@@ -81,13 +81,13 @@ ubtc_to_satoshi(Ubtc) when is_number(Ubtc), Ubtc >= 0.000001 ->
     Ubtc * 100.
 
 btc_to_satoshi(Btc) when is_number(Btc), Btc >= 0.00000001 ->
-    Btc * 100000000.
+    erlang:trunc(Btc * 100000000).
 
 btc_to_mbtc(Btc) when is_number(Btc), Btc >= 0.00000001 ->
-    satoshi_to_mbtc(btc_to_satoshi(Btc)).
+    erlang:trunc(satoshi_to_mbtc(btc_to_satoshi(Btc))).
 
 btc_to_ubtc(Btc) when is_number(Btc), Btc >= 0.00000001 ->
-    satoshi_to_ubtc(btc_to_satoshi(Btc)).
+    erlang:trunc(satoshi_to_ubtc(btc_to_satoshi(Btc))).
 
 % Some functions for manipulating payees
 %
@@ -188,11 +188,20 @@ add_payee(Payment, Unspents, Payee, Overflow) ->
 		    r_value = Remainder,
 			change = Payee#payee.change}}.
 
+acquire_only(Payment, Unspents, Payee) ->
+	{RemainingUnspents, Selected, Remainder} =
+	    acquire(Unspents, Payee, Payment),
+	{RemainingUnspents, Payment#payment{
+		    selected=Payment#payment.selected ++ Selected,
+		    r_color = Payee#payee.color,
+		    r_value = Remainder,
+			change = Payee#payee.change}}.
+
 % Finish and validate a payments object
 % Returns a TX ready for signing
 finalize(Payment, Unspents, Change) when is_record(Payment, payment) ->
 	P = add_dust(Payment),
-	P2 = finish_color(P), %If not uncolored, send back change to last payee
+	P2 = finish_color(P, Unspents), %If not uncolored, send back change to last payee
 	P3 = add_fee(P2),
 	{Remaining, P4} = add_change(P3, Unspents, Change),
 	P5 = P4#payment{outputs = lists:reverse(P4#payment.outputs)},
@@ -220,7 +229,6 @@ final_check(P) ->
 	check_value(P),
 	P.
 
-
 check_dust_verify(P) ->
 	lists:map(fun(O) ->
 		if O#btxout.value < ?DUSTLIMIT ->
@@ -229,12 +237,18 @@ check_dust_verify(P) ->
 	end end, P#payment.outputs).
 
 check_value(P) ->
-	BTCspent = value(?Uncolored, P#payment.selected),
-	BTCincluded = value(?Uncolored, P#payment.outputs),
-	BTCFee = BTCincluded - BTCspent,
-	if BTCFee < 5*?DEFAULTFEE -> P;
-	   true -> 
-		    ?debugFmt("checkvalue: ~p ~p ~n", [BTCspent, BTCincluded]),
+	BTCinputs = value(?Uncolored, P#payment.selected),
+	BTCoutputs = value(?Uncolored, P#payment.outputs),
+	BTCFee = BTCinputs - BTCoutputs,
+	if 
+	    BTCFee < ?DEFAULTFEE ->
+            ?debugFmt("Insufficient Fee ~p.~n", [BTCFee]),
+            throw(insufficient_funds);
+	    BTCFee < 5*?DEFAULTFEE -> P;
+	    true -> 
+		    ?debugFmt("checkvalue: Fee ~p Inputs: ~p Outputs: ~p ~n", [BTCFee,
+		                                                         BTCinputs,
+		                                                         BTCoutputs]),
 	   		throw(insufficient_funds)
 	end.
 
@@ -268,33 +282,51 @@ make_outputs(Unspents,
 			throw(insufficient_funds)
 	end.
 
-finish_color(#payment{r_color=?Uncolored}=P) ->
+acquire(Unspents,
+			P,  % payee
+			Payment) ->
+	case get_inputs(list, Unspents, P, Payment#payment.r_value) of
+		{RemainingUnspents, Selected, T} when T =:= P#payee.value ->
+			% Requested Amount completely fullfilled
+			{RemainingUnspents, Selected, 0};
+		{RemainingUnspents, Selected, T} when T > P#payee.value ->
+		    {RemainingUnspents, Selected, T-P#payee.value};
+		{_RemainingUnspents, _Selected, T} when T < P#payee.value ->
+			% Request was only partially filled
+			% More than available amount of color was needed
+			throw(insufficient_funds)
+	end.
+
+
+finish_color(#payment{r_color=?Uncolored}=P, _) ->
     P;
-finish_color(P) when is_record(P, payment) ->
+finish_color(P, Unspents) when is_record(P, payment) ->
+    LastOutput = lists:last(Unspents),
 	P#payment{outputs=create_change_output(P, P#payment.outputs),
 		      change=undefined,
 			  r_color=?Uncolored,
-			  r_value=0}.
+			  r_value=LastOutput#utxop.value}.
 
 add_change(P, Unspents, Change) when is_record(P, payment),
 		is_record(Change, addr) ->
-	BTCspent = value(?Uncolored, P#payment.selected),
-	BTCincluded = value(?Uncolored, P#payment.outputs),
-	BTCneeded = BTCincluded + P#payment.fee,
-	%?debugFmt("~p ~p ~p ~p~n", [P#payment.fee, BTCspent, BTCincluded, BTCneeded]),
-	if BTCspent =:= BTCneeded ->
+	BTCinputs = value(?Uncolored, P#payment.selected),
+	BTCoutputs = value(?Uncolored, P#payment.outputs),
+	BTCneeded = BTCoutputs + P#payment.fee,
+	if BTCinputs =:= BTCneeded ->
 			{Unspents, P};
-	   BTCspent > BTCneeded ->
+	   BTCinputs > BTCneeded ->
 			% Need to return some of this to Change
-			Diff = BTCspent - BTCneeded,
-			add_payee(P, Unspents, payee(Change, Change, ?Uncolored, Diff), false);
-			%{Unspents, P#payment{outputs = create_change_output(Change, Diff, P#payment.outputs)}};
-	   BTCspent < BTCneeded ->
-	   		Diff = BTCneeded - BTCspent,
+			Diff = BTCinputs - BTCneeded,
+            %?debugFmt("Spent greater than needed: ~p~n", [Diff]),
+			{Unspents, P#payment{outputs = create_change_output(Change, Diff, P#payment.outputs)}};
+	   BTCinputs < BTCneeded ->
+	   		Diff = BTCneeded - BTCinputs,
+            %?debugFmt("Spent less than needed: ~p~n", [Diff]),
 	   		% Not enough BTC to cover fees
 	   		% Create a payment back to change addr
 	   		% Overflow = true so total acquired BTC goes back to change
-			add_payee(P, Unspents, payee(Change, Change, ?Uncolored, Diff), true)
+            {R, P2} = acquire_only(P, Unspents, payee(Change, Change, ?Uncolored, Diff)),
+			add_change(P2, R, Change)
 	end.
 
 % Insert an open assets color marker
@@ -314,10 +346,10 @@ create_change_output(P, O) when is_record(P, payment) ->
 		P#payment.r_color, P#payment.r_value,
 			P#payment.change#addr.bin)|O].
 
-%create_change_output(P, Value, O) when is_record(P, addr) ->
-%	[lib_tx:create_output(lib_address:type(P),
-%		?Uncolored, Value,
-%		P#addr.bin)|O].
+create_change_output(P, Value, O) when is_record(P, addr) ->
+	[lib_tx:create_output(lib_address:type(P),
+		?Uncolored, Value,
+		P#addr.bin)|O].
 
 create_output(P) when is_record(P, payee) ->
 	lib_tx:create_output(lib_address:type(P#payee.address),
