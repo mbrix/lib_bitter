@@ -61,10 +61,12 @@
 	     validate/1,
 	     is_color_address/1,
 	     color_address/1,
-	     includes/2]).
+	     includes/2,
+	     encode_metaurl/1]).
 
 % testing
--export([create_marker_output/1]).
+-export([create_marker_output/1,
+         create_marker_output/2]).
 
 -include_lib("bitter.hrl").
 -include_lib("eunit/include/eunit.hrl").
@@ -220,11 +222,6 @@ new(ColorBin) when is_binary(ColorBin) ->
 
 new(Name, U) when is_record(U, utxop) ->
 	IC = unspent_to_ic(U),
-	#color{name = Name,
-		   bin = IC};
-
-new(Name, I) when is_record(I, btxin) ->
-	IC = input_to_ic(I),
 	#color{name = Name,
 		   bin = IC};
 
@@ -421,9 +418,6 @@ get_spend_color(ColorList) ->
 unspent_to_ic(Unspent) ->
 	crypto:hash(ripemd160, crypto:hash(sha256, Unspent#utxop.script)).
 
-input_to_ic(Input) ->
-	crypto:hash(ripemd160, crypto:hash(sha256, Input#btxin.script)).
-
 script_to_ic(Script) when is_binary(Script) ->
     crypto:hash(ripemd160, crypto:hash(sha256, Script)).
 
@@ -509,19 +503,24 @@ color_aggregate(Payees) when is_list(Payees) ->
 				A#payee.color >= B#payee.color
 				end, Payees).
 
-encode_marker(M) ->
+encode_marker(M, Meta) ->
 	OA = erlang:iolist_to_binary([
 	<<16#4f:8, 16#41:8, 16#01, 16#00>>,
 	lib_tx:int_to_varint(length(M)),
 	lists:map(fun(E) -> leb128:encode(E, unsigned) end, M),
-				lib_tx:int_to_varint(0)]),
+				lib_tx:int_to_varint(size(Meta)), Meta]),
 	erlang:iolist_to_binary([<<?OP_RETURN>>,
 			lib_tx:int_to_pushdata(size(OA)), OA]).
 
 
 create_marker_output(M) when is_list(M) ->
-	BinMarker = encode_marker(M),
+    BinMarker = encode_marker(M, <<>>),
 	validate_marker(BinMarker).
+
+create_marker_output(M, Meta) when is_list(M) ->
+    MetaBin = erlang:iolist_to_binary([Meta]),
+    BinMarker = encode_marker(M, MetaBin),
+    validate_marker(BinMarker).
 
 validate_marker(B) when size(B) > 40 ->
     throw(marker_error);
@@ -543,7 +542,7 @@ marker(P) when is_record(P, payment) ->
 	M = lists:map(fun(E) ->
 					E#btxout.quantity
 				  end, L),
-	insert_marker(P, create_marker_output(M));
+	insert_marker(P, create_marker_output(M, P#payment.metaurl));
 
 % Iterate over O until marker is found
 % or return error
@@ -585,6 +584,14 @@ meta_url(O) ->
 	        end;
 	    _ -> error
     end.
+
+encode_metaurl(Url) when is_list(Url) ->
+    case http_uri:parse(Url) of
+        {ok, _Result} -> iolist_to_binary(["u=", Url]);
+        {error, _} -> <<>>
+    end;
+
+encode_metaurl(_) -> <<>>.
 
 insert_marker(P, M) ->
 	{Start, End} = lists:split(P#payment.issuances, P#payment.outputs),

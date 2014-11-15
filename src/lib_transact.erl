@@ -57,7 +57,8 @@
 	     add_fee/1,
 	     spent/2,
 	     included/2,
-	     fee/1]).
+	     fee/1,
+	     metaurl/2]).
 
 -include_lib("bitter.hrl").
 -include_lib("eunit/include/eunit.hrl").
@@ -104,13 +105,19 @@ payee(Address, Change, Color, Value) ->
 payment() ->
 	#payment{selected=[],
 		     outputs=[],
-		     issuances=0}.
+		     issuances=0,
+		     metaurl = <<>>}.
 
 payment(Color) ->
     #payment{selected=[],
              outputs=[],
              issuances=0,
-             r_color = lib_color:hash160(Color)}.
+             r_color = lib_color:hash160(Color),
+             metaurl = <<>>}.
+
+%% Prior to issue we may want to associate a Meta data url
+metaurl(P, Url) when is_record(P, payment) ->
+    P#payment{metaurl = lib_color:encode_metaurl(Url)}.
 
 % Add an issuance to a payment
 % BTC change will flow back on
@@ -134,6 +141,7 @@ issue(Payment, Unspent = #utxop{color = ?Uncolored}, Payee) ->
 	   		    	        r_value = Unspent#utxop.value - O#btxout.value,
 	   		    	        r_color = ?Uncolored}
 	end;
+
 
 % Let's simplify this and not use colored unspents
 % for issuance. Colored unspents can only be used for

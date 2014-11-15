@@ -711,8 +711,7 @@ is_colored() ->
 
 issue_and_find() ->
 	Inputs = colored_inputs(red),
-	[I|_] = Inputs,
-	IC = lib_color:new(magic, I),
+	IC = lib_color:get_issue_color(Inputs, fun lookup_tx/2),
 	Outputs = colored_outputs(red),
 	WalletUnspents = outputs_to_dict(Outputs),
 	ColoredUnspents = lib_transact:get_colored_unspents(dict, red, WalletUnspents),
@@ -891,6 +890,16 @@ marker_size() ->
     ?assertThrow(marker_error,
                  lib_color:create_marker_output(lists:seq(1,33))).
 
+marker_meta() ->
+    M = lib_color:create_marker_output([10000,100,300], "u=http://cpr.sm/Ekdisj"),
+	B = lib_parse:parse_script(M#btxout.script),
+	?assertEqual({openassets, {[10000,100,300], <<"u=http://cpr.sm/Ekdisj">>}}, B).
+
+encode_metaurl() ->
+    ?assertEqual(<<"u=http://blah.com">>, lib_color:encode_metaurl("http://blah.com")),
+    ?assertEqual(<<>>, lib_color:encode_metaurl("u=http://blah.com")),
+    ?assertEqual(<<>>, lib_color:encode_metaurl(<<"http://www.test.com">>)).
+
 % Issue and transfer from coinprism broke
 % These are the raw transactions in the transaction chain
 
@@ -989,7 +998,9 @@ color_test_() ->
 	    {"Json decode test", fun json_decode/0},
 	    {"Bin or List color", fun bin_color_address/0},
         {"Bad color type", fun bad_type_color/0},
-        {"Marker size too big", fun marker_size/0}
+        {"Marker size too big", fun marker_size/0},
+        {"Marker meta data encode", fun marker_meta/0},
+        {"Encode meta url", fun encode_metaurl/0}
 %	    {"Coinprism issue", fun coinprism_broke/0}
    ]
   }.
