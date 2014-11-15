@@ -211,7 +211,11 @@ new(ColorName) when is_list(ColorName) ->
 
 new(ColorBin) when is_binary(ColorBin) ->
     #color{name = unknown,
-       bin = ColorBin}.
+       bin = ColorBin};
+
+new(I) when is_record(I, btxin) ->
+    #color{name = unknown,
+           bin = input_to_ic(I)}.
 
 new(Name, U) when is_record(U, utxop) ->
 	IC = unspent_to_ic(U),
