@@ -880,7 +880,16 @@ bad_type_color() ->
         <<"1.0">>},
     B = #color{bin = <<162,242,229,197,141,84,159,165,66,12,
           127,192,204,5,49,139,47,255,59,251>>},
-?assertEqual(A#color.bin, B#color.bin).
+    ?assertEqual(A#color.bin, B#color.bin).
+
+% Demonstrates encoded marker size variation on number of disparate colors encoded
+marker_size() ->
+    %% 9 Encoded Transfers
+    ?assertThrow(marker_error,
+                 lib_color:create_marker_output(lists:seq(1000000,1000010))),
+    %% 32 Encoded Transfers
+    ?assertThrow(marker_error,
+                 lib_color:create_marker_output(lists:seq(1,33))).
 
 % Issue and transfer from coinprism broke
 % These are the raw transactions in the transaction chain
@@ -979,7 +988,8 @@ color_test_() ->
 	    {"Validate color recs", fun validate_color/0},
 	    {"Json decode test", fun json_decode/0},
 	    {"Bin or List color", fun bin_color_address/0},
-        {"Bad color type", fun bad_type_color/0}
+        {"Bad color type", fun bad_type_color/0},
+        {"Marker size too big", fun marker_size/0}
 %	    {"Coinprism issue", fun coinprism_broke/0}
    ]
   }.

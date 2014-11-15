@@ -211,11 +211,12 @@ new(ColorName) when is_list(ColorName) ->
 
 new(ColorBin) when is_binary(ColorBin) ->
     #color{name = unknown,
-       bin = ColorBin};
+       bin = ColorBin}.
 
-new(I) when is_record(I, btxin) ->
-    #color{name = unknown,
-           bin = input_to_ic(I)}.
+% Can't do this. Its just wrong.
+%new(I) when is_record(I, btxin) ->
+%    #color{name = unknown,
+%           bin = input_to_ic(I)}.
 
 new(Name, U) when is_record(U, utxop) ->
 	IC = unspent_to_ic(U),
@@ -520,11 +521,16 @@ encode_marker(M) ->
 
 create_marker_output(M) when is_list(M) ->
 	BinMarker = encode_marker(M),
+	validate_marker(BinMarker).
+
+validate_marker(B) when size(B) > 40 ->
+    throw(marker_error);
+validate_marker(B) ->
 	#btxout{value = 0,
 		    color = ?Uncolored,
 		    quantity = 0,
-		    script = BinMarker,
-		    info = lib_parse:parse_script(BinMarker)}.
+		    script = B,
+		    info = lib_parse:parse_script(B)}.
 
 marker(P) when is_record(P, payment) ->
 	L = lists:takewhile(fun(E) ->
