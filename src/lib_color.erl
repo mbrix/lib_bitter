@@ -62,7 +62,8 @@
 	     is_color_address/1,
 	     color_address/1,
 	     includes/2,
-	     encode_metaurl/1]).
+	     encode_metaurl/1,
+	     unspent_to_ic/1]).
 
 % testing
 -export([create_marker_output/1,
