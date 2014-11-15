@@ -553,19 +553,28 @@ meta(O) ->
 		_ -> error
 	end.
 
+meta_url(Tx) when is_record(Tx, btxdef) ->
+    meta_url(Tx#btxdef.txoutputs);
+
 meta_url(O) ->
-	case meta(O) of
-		error -> error;
-		<<>> -> error;
-		<<"u=", M/bitstring>> ->
-			case http_uri:parse(binary_to_list(M)) of
-				{ok, _Result} ->
-					binary_to_list(M);
-				{error, _} ->
-					error
-			end;
-		_ -> error
-	end.
+    [H|_] = O,
+    % If the metainfo is the first output, then this is a transfer only
+    % and we shouldn't return a URL for this asset.
+    case meta([H]) of
+        error ->
+	        case meta(O) of
+	        	error -> error;
+	        	<<>> -> error;
+	        	<<"u=", M/bitstring>> ->
+	        		case http_uri:parse(binary_to_list(M)) of
+                        {ok, _Result} -> binary_to_list(M);
+	        			{error, _} ->
+	        				error
+	        		end;
+	        	_ -> error
+	        end;
+	    _ -> error
+    end.
 
 insert_marker(P, M) ->
 	{Start, End} = lists:split(P#payment.issuances, P#payment.outputs),
