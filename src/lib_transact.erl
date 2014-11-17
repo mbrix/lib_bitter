@@ -66,27 +66,35 @@
 
 % Utility functions for satoshi conversion
 
+satoshi_to_mbtc(S) when is_number(S), S < 1 -> 0;
 satoshi_to_mbtc(Satoshis) when is_number(Satoshis), Satoshis >= 1 ->
     Satoshis / 100000.
 
+satoshi_to_ubtc(S) when is_number(S), S < 1 -> 0;
 satoshi_to_ubtc(Satoshis) when is_number(Satoshis), Satoshis >= 1->
     Satoshis / 100.
 
+satoshi_to_btc(S) when is_number(S), S < 1 -> 0;
 satoshi_to_btc(Satoshis) when is_number(Satoshis), Satoshis >= 1 ->
     Satoshis / 100000000.
 
+mbtc_to_satoshi(S) when is_number(S), S < 0.0001 -> 0;
 mbtc_to_satoshi(Mbtc) when is_number(Mbtc), Mbtc >= 0.0001 ->
     Mbtc * 10000.
 
+ubtc_to_satoshi(S) when is_number(S), S < 0.000001 -> 0;
 ubtc_to_satoshi(Ubtc) when is_number(Ubtc), Ubtc >= 0.000001 ->
     Ubtc * 100.
 
+btc_to_satoshi(S) when is_number(S), S < 0.00000001 -> 0;
 btc_to_satoshi(Btc) when is_number(Btc), Btc >= 0.00000001 ->
     erlang:trunc(Btc * 100000000).
 
+btc_to_mbtc(S) when is_number(S), S < 0.00000001 -> 0;
 btc_to_mbtc(Btc) when is_number(Btc), Btc >= 0.00000001 ->
     erlang:trunc(satoshi_to_mbtc(btc_to_satoshi(Btc))).
 
+btc_to_ubtc(S) when is_number(S), S < 0.00000001 -> 0;
 btc_to_ubtc(Btc) when is_number(Btc), Btc >= 0.00000001 ->
     erlang:trunc(satoshi_to_ubtc(btc_to_satoshi(Btc))).
 

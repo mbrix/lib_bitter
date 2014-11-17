@@ -306,6 +306,9 @@ dust_fee() ->
 
 
 satoshi_conversions() ->
+    ?assertEqual(0, lib_transact:satoshi_to_btc(0)),
+    ?assertEqual(0, lib_transact:satoshi_to_btc(0.0)),
+    ?assertEqual(0, lib_transact:btc_to_satoshi(0)),
     ?assertEqual(100000000, lib_transact:btc_to_satoshi(1)),
     ?assertEqual(0.00001, lib_transact:satoshi_to_mbtc(1)),
     ?assertEqual(0.01, lib_transact:satoshi_to_ubtc(1)),
