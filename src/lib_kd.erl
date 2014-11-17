@@ -37,6 +37,7 @@
 	     oldest/1,
 	     newest/1,
 	     height/2,
+	     height/3,
 	     remove/2]).
 
 -include_lib("bitter.hrl").
@@ -89,9 +90,12 @@ remove(Dict, RDict) ->
                 end end, Dict).
 
 height(Dict, Height) ->
-    oldest(dict:filter(fun(_K, V) ->
+    oldest(height(dict, Dict, Height)).
+
+height(dict, Dict, Height) ->
+    dict:filter(fun(_K, V) ->
                 V#utxop.height =< Height
-        end, Dict)).
+        end, Dict).
 
 oldest(Dict) ->
 	pop_unconfirmed(lists:sort(fun(A, B) ->
