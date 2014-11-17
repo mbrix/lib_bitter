@@ -27,7 +27,8 @@
 -module(lib_notify).
 -author('mbranton@emberfinancial.com').
 
--export([connect_nodes/1,
+-export([find/2,
+         connect_nodes/1,
          get_best_pid/1,
          near/1,
          fast/1,
@@ -99,6 +100,13 @@ random(Mod) ->
     end.
 
 %% Broadcast and messaging functions
+
+find(local, Name) ->
+    gproc:where({n,l,Name});
+
+find(global, Name) ->
+    gproc:where({n,g,Name}).
+
 
 bregister(local, Name) ->
     gproc:reg({n,l,Name});
