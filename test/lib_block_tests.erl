@@ -59,6 +59,15 @@ color() ->
     %?debugFmt("~p~n~n~p~n", [B, ColorBlock]),
     ?assertEqual(B, ColorBlock).
 
+json_serialize() ->
+    HexBlock = erlang:binary_to_list(lib_test:data("rawblock2.hex")),
+    RawBlock = hex:hexstr_to_bin(HexBlock),
+    {_, BlockRecord, _} = lib_parse:extract(RawBlock),
+    JsonBlock = lib_block:to_json(BlockRecord),
+    D = jiffy:decode(JsonBlock, [return_maps]),
+    ?assertEqual(hex:bin_reverse(hex:hexstr_to_bin(maps:get(<<"hash">>, D))),
+                 BlockRecord#bbdef.blockhash).
+
 block_test_() -> 
   {foreach,
   fun start/0,
@@ -66,6 +75,7 @@ block_test_() ->
    [
 		{"Parse and Serialize", fun parse_serialize/0},
 		{"More complicated", fun complicated_serialize/0},
-		{"Color Serialize / Deserialize", fun color/0}
+		{"Color Serialize / Deserialize", fun color/0},
+		{"Json Serialize", fun json_serialize/0}
    ]
   }.

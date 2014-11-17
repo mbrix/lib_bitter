@@ -29,6 +29,8 @@
 -author('mbranton@emberfinancial.com').
 
 -export([header/1,
+         to_json/1,
+         blockhash/1,
          hashes/1,
          print/1,
          serialize/1,
@@ -58,6 +60,31 @@ header(Block) when is_record(Block, bbdef) ->
 		   e_next=Block#bbdef.e_next,
 		   txdata=[]}.
 
+to_json(Block) when is_record(Block, bbdef) ->
+    jiffy:encode(#{
+            hash => hex:bin_to_hexstr(hex:bin_reverse(Block#bbdef.blockhash)),
+            version => Block#bbdef.version,
+            merkleroot => hex:bin_to_hexstr(hex:bin_reverse(Block#bbdef.merkleroot)),
+            tx => txhashes(Block#bbdef.txdata),
+            time => Block#bbdef.timestamp,
+            nonce => Block#bbdef.nonce,
+            difficulty => Block#bbdef.difficulty,
+            %% Chainwork would have to query chaind
+            previousblockhash => hex:bin_to_hexstr(hex:bin_reverse(Block#bbdef.previoushash))
+            %% nextblockhash would have to query chaind
+            }).
+
+txhashes(TxData) -> txhashes(TxData, []).
+txhashes([], Acc) -> lists:reverse(Acc);
+txhashes(TxData, Acc) ->
+    [H|T] = TxData,
+    txhashes(T, [hex:bin_to_hexstr(hex:bin_reverse(H#btxdef.txhash))|Acc]).
+
+blockhash(BlockHash) when is_binary(BlockHash) ->
+    hex:bin_reverse(hex:hexstr_to_bin(erlang:binary_to_list(BlockHash)));
+blockhash(Block) when is_record(Block, bbdef) ->
+    Block#bbdef.blockhash.
+
 hashes(Block) when is_record(Block, bbdef) ->
 	Block#bbdef{txdata=hashes(Block#bbdef.txdata)};
 hashes(TxData) when is_list(TxData)->
@@ -75,6 +102,7 @@ print(B) when is_record(B, bbdef) ->
               [hex:bin_to_hexstr(hex:bin_reverse(B#bbdef.blockhash)),
                B#bbdef.e_height,
                hex:bin_to_hexstr(hex:bin_reverse(B#bbdef.previoushash)),
+
                B#bbdef.difficulty]).
 
 
