@@ -65,7 +65,7 @@ json_serialize() ->
     {_, BlockRecord, _} = lib_parse:extract(RawBlock),
     JsonBlock = lib_block:to_json(BlockRecord),
     D = jiffy:decode(JsonBlock, [return_maps]),
-    ?assertEqual(hex:bin_reverse(hex:hexstr_to_bin(maps:get(<<"hash">>, D))),
+    ?assertEqual(hex:bin_reverse(hex:hexstr_to_bin(binary_to_list(maps:get(<<"hash">>, D)))),
                  BlockRecord#bbdef.blockhash).
 
 blockhash_to_binary() ->

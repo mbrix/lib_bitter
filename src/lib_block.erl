@@ -61,16 +61,19 @@ header(Block) when is_record(Block, bbdef) ->
 		   txdata=[]}.
 
 to_json(Block) when is_record(Block, bbdef) ->
+    BlockHash = hex:bin_to_hexstr(hex:bin_reverse(Block#bbdef.blockhash)),
+    MerkleRoot = hex:bin_to_hexstr(hex:bin_reverse(Block#bbdef.merkleroot)),
+    PreviousHash = hex:bin_to_hexstr(hex:bin_reverse(Block#bbdef.previoushash)),
     jiffy:encode(#{
-            hash => hex:bin_to_hexstr(hex:bin_reverse(Block#bbdef.blockhash)),
+            hash => iolist_to_binary(BlockHash),
             version => Block#bbdef.version,
-            merkleroot => hex:bin_to_hexstr(hex:bin_reverse(Block#bbdef.merkleroot)),
+            merkleroot => iolist_to_binary(MerkleRoot),
             tx => txhashes(Block#bbdef.txdata),
             time => Block#bbdef.timestamp,
             nonce => Block#bbdef.nonce,
             difficulty => Block#bbdef.difficulty,
             %% Chainwork would have to query chaind
-            previousblockhash => hex:bin_to_hexstr(hex:bin_reverse(Block#bbdef.previoushash))
+            previousblockhash => iolist_to_binary(PreviousHash) 
             %% nextblockhash would have to query chaind
             }).
 
@@ -78,7 +81,8 @@ txhashes(TxData) -> txhashes(TxData, []).
 txhashes([], Acc) -> lists:reverse(Acc);
 txhashes(TxData, Acc) ->
     [H|T] = TxData,
-    txhashes(T, [hex:bin_to_hexstr(hex:bin_reverse(H#btxdef.txhash))|Acc]).
+    HBinstr = hex:bin_to_hexstr(hex:bin_reverse(H#btxdef.txhash)),
+    txhashes(T, [iolist_to_binary(HBinstr)|Acc]).
 
 blockhash(BlockHash) when is_binary(BlockHash) ->
     blockhash(erlang:binary_to_list(BlockHash));
