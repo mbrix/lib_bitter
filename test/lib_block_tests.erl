@@ -68,6 +68,14 @@ json_serialize() ->
     ?assertEqual(hex:bin_reverse(hex:hexstr_to_bin(maps:get(<<"hash">>, D))),
                  BlockRecord#bbdef.blockhash).
 
+blockhash_to_binary() ->
+    BinaryHash = <<218,134,101,225,0,13,128,90,15,31,160,92,183,164,16,133,177,145,170,117,43,
+  203,91,0,0,0,0,0,0,0,0,0>>,
+    A = lib_block:blockhash("0000000000000000005bcb2b75aa91b18510a4b75ca01f0f5a800d00e16586da"),
+    B = lib_block:blockhash(<<"0000000000000000005bcb2b75aa91b18510a4b75ca01f0f5a800d00e16586da">>),
+    ?assertEqual(A, B),
+    ?assertEqual(A, BinaryHash).
+
 block_test_() -> 
   {foreach,
   fun start/0,
@@ -76,6 +84,7 @@ block_test_() ->
 		{"Parse and Serialize", fun parse_serialize/0},
 		{"More complicated", fun complicated_serialize/0},
 		{"Color Serialize / Deserialize", fun color/0},
-		{"Json Serialize", fun json_serialize/0}
+		{"Json Serialize", fun json_serialize/0},
+		{"Blockhash to binary", fun blockhash_to_binary/0}
    ]
   }.

@@ -81,7 +81,9 @@ txhashes(TxData, Acc) ->
     txhashes(T, [hex:bin_to_hexstr(hex:bin_reverse(H#btxdef.txhash))|Acc]).
 
 blockhash(BlockHash) when is_binary(BlockHash) ->
-    hex:bin_reverse(hex:hexstr_to_bin(erlang:binary_to_list(BlockHash)));
+    blockhash(erlang:binary_to_list(BlockHash));
+blockhash(BlockHash) when is_list(BlockHash) ->
+    hex:bin_reverse(hex:hexstr_to_bin(BlockHash));
 blockhash(Block) when is_record(Block, bbdef) ->
     Block#bbdef.blockhash.
 
