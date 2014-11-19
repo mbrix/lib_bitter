@@ -48,7 +48,7 @@ to_json(UnspentList, Height) when is_list(UnspentList) ->
                   vout => Index,
                   address => Address,
                   scriptPubKey => ScriptPubKey,
-                  amount => E#utxop.value,
+                  amount => lib_transact:satoshi_to_btc(E#utxop.value),
                   confirmations => Confirmations,
                   color => Color,
                   quantity => E#utxop.quantity}
