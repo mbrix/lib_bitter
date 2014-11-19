@@ -569,10 +569,16 @@ to_json(Tx) when is_record(Tx, btxdef) ->
 inputs_to_json(Txinputs) ->
     lists:foldl(fun(E, Acc) ->
                 Txid = iolist_to_binary(hex:bin_to_hexstr(hex:bin_reverse(E#btxin.txhash))),
-                [#{txid => Txid,
-                   vout => E#btxin.txindex,
-                   scriptsig => scriptsig_to_json(E#btxin.script),
-                   sequence => E#btxin.seqnum}|Acc] end, [], Txinputs).
+                case E#btxin.txhash of
+                    ?COINBASE ->
+                        [#{coinbase => iolist_to_binary(hex:bin_to_hexstr(E#btxin.script)),
+                           sequence => E#btxin.seqnum}|Acc];
+                    _ ->
+                        [#{txid => Txid,
+                           vout => E#btxin.txindex,
+                           scriptsig => scriptsig_to_json(E#btxin.script),
+                           sequence => E#btxin.seqnum}|Acc]
+                        end end, [], Txinputs).
 
 scriptsig_to_json(Script) ->
     Hexbin = iolist_to_binary(hex:bin_to_hexstr(Script)),
