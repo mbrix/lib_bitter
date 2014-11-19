@@ -30,7 +30,7 @@
 -export([bin_to_hexstr/1,hexstr_to_bin/1, bin_reverse/1]).
 
 bin_to_hexstr(Bin) ->
-  lists:flatten([io_lib:format("~2.16.0B", [X]) ||
+  lists:flatten([io_lib:format("~2.16.0b", [X]) ||
     X <- binary_to_list(Bin)]).
 
 hexstr_to_bin(S) ->
