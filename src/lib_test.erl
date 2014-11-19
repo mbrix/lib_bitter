@@ -121,6 +121,7 @@ random_unspent(Height) ->
     #utxop{hash_index = {crypto:rand_bytes(32), random:uniform(1000)},
            value = random:uniform(100000000),
            script = Script,
+           address = lib_address:hash160(Address),
            info = lib_parse:parse_script(Script),
            color = ?Uncolored,
            quantity = 0,

@@ -58,7 +58,8 @@
 	     from_hex/1,
 	     vector/1,
 	     sigs/1,
-	     total/1]).
+	     total/1,
+	     to_json/1]).
 
 
 -include_lib("bitter.hrl").
@@ -544,3 +545,48 @@ add_outputs([], Value) -> Value;
 add_outputs(O, Value) ->
     [H|T] = O,
     add_outputs(T, Value + H#btxout.value).
+
+
+to_json(Tx) when is_binary(Tx) ->
+    to_json(lib_parse:parse_tx(Tx));
+to_json(Tx) when is_record(Tx, btxdef) ->
+    Hexstr = iolist_to_binary(hex:bin_to_hexstr(serialize(Tx))),
+    Txid = iolist_to_binary(hex:bin_to_hexstr(hex:bin_reverse(Tx#btxdef.txhash))),
+    jiffy:encode(#{
+            hex => Hexstr,
+            txid => Txid,
+            version => Tx#btxdef.txversion,
+            locktime => Tx#btxdef.txlocktime,
+            vin => inputs_to_json(Tx#btxdef.txinputs),
+            vout => outputs_to_json(Tx#btxdef.txoutputs)
+            %% blockhash not stored outside of block
+            %% confirmations not stored outside of unspent pool
+            %% time not stored outside of block
+            %% blocktime now stored outside of block
+        }).
+
+inputs_to_json(Txinputs) ->
+    lists:foldl(fun(E, Acc) ->
+                Txid = iolist_to_binary(hex:bin_to_hexstr(hex:bin_reverse(E#btxin.txhash))),
+                [#{txid => Txid,
+                   vout => E#btxin.txindex,
+                   scriptsig => scriptsig_to_json(E#btxin.script),
+                   sequence => E#btxin.seqnum}|Acc] end, [], Txinputs).
+
+scriptsig_to_json(Script) ->
+    Hexbin = iolist_to_binary(hex:bin_to_hexstr(Script)),
+    #{hex => Hexbin,
+      asm => <<"">>}.
+
+outputs_to_json(Txoutputs) ->
+    {_, O} = lists:foldl(fun(E, {Vcounter, Outputs}) ->
+                {Vcounter+1, [#{value => lib_transact:satoshi_to_btc(E#btxout.value),
+                                vout => Vcounter,
+                                scriptPubKey => scriptpubkey_to_json(E#btxout.script)}|Outputs]}
+            end, {0, []}, Txoutputs),
+    O.
+
+scriptpubkey_to_json(Script) ->
+    Hexbin = iolist_to_binary(hex:bin_to_hexstr(Script)),
+    #{hex => Hexbin,
+      asm => <<"">>}.
