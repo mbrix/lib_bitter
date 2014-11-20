@@ -35,7 +35,7 @@
          print/1,
          serialize/1,
          color_serialize/1,
-         color_tx_serialize/2,
+         color_tx_serialize/1,
          apply_color/2,
          recolor_outputs/2]).
 
