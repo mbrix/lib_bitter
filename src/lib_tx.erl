@@ -55,6 +55,7 @@
 	     is_signed/1,
 	     clear_input_scripts/2,
 	     readable/1,
+	     readable_txhash/1,
 	     from_hex/1,
 	     vector/1,
 	     sigs/1,
@@ -243,6 +244,9 @@ sigs(ScriptSig, Acc) ->
 is_signed(Tx) ->
 	not lists:any(fun(I) -> I#btxin.signed =/= true end,
 		Tx#btxdef.txinputs).
+
+readable_txhash(Tx) when is_record(Tx, btxdef) ->
+    hex:bin_to_hexstr(hex:bin_reverse(Tx#btxdef.txhash)).
 
 readable(Tx) when is_record(Tx, btxdef) ->
 	hex:bin_to_hexstr(serialize_btxdef(Tx)).

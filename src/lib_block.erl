@@ -35,7 +35,8 @@
          print/1,
          serialize/1,
          color_serialize/1,
-         apply_color/2]).
+         apply_color/2,
+         recolor_outputs/2]).
 
 -include_lib("bitter.hrl").
 -include_lib("eunit/include/eunit.hrl").
