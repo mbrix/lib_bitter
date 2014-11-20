@@ -47,6 +47,7 @@
 %%  Make sure none of the inputs have hash=0, n=-1 (coinbase transactions)
 %%  Check that nLockTime <= INT_MAX[1], size in bytes >= 100[2], and sig opcount <= 2[3]
 %%  Reject "nonstandard" transactions: scriptSig doing anything other than pushing numbers on the stack, or scriptPubkey not matching the two usual forms[4]
+%%
 %%  Reject if we already have matching tx in the pool, or in a block in the main branch
 %%  For each input, if the referenced output exists in any other tx in the pool, reject this transaction.[5]
 %%  For each input, look in the main branch and the transaction pool to find the referenced output transaction. If the output transaction is missing for any input, this will be an orphan transaction. Add to the orphan transactions, if a matching transaction is not in there already.
