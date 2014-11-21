@@ -32,6 +32,7 @@
 -export([term_to_file/2,
 	     term_from_file/1,
 		 fake_block/1,
+		 fake_block_pure/1,
          create_random_address/0,
          inputs_from_outputs/2,
          create_input/0,
@@ -85,6 +86,10 @@ fake_block(Filename) ->
     B = zero_inputs(A), % Strip unused inputs
 	B#bbdef{previoushash = ?CHAIN_ROOT}.
 
+% don't zero inputs
+fake_block_pure(Filename) ->
+	A = term_from_file(Filename),
+	A#bbdef{previoushash = ?CHAIN_ROOT}.
 
 zero_inputs(Block) ->
 	Txdata = lists:map(fun(Tx) -> zero_inputs_tx(Tx) end,
