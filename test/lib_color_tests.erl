@@ -59,12 +59,14 @@ marker_only() ->
 
 uncolored_list() ->
 	Inputs = colored_inputs(?Uncolored),
-	ColorList = lib_color:build_color_list(Inputs, fun lookup_tx/2),
+	Unspents = inputs_to_unspents(Inputs),
+	ColorList = lib_color:build_color_list(Inputs, Unspents),
 	?assertEqual(0, length(ColorList)).
 
 mixed_list() ->
 	Inputs = colored_inputs(red) ++ colored_inputs(blue),
-	ColorList = lib_color:build_color_list(Inputs, fun lookup_tx/2),
+	Unspents = inputs_to_unspents(Inputs),
+	ColorList = lib_color:build_color_list(Inputs, Unspents),
 	?assertEqual(length(Inputs), length(ColorList)),
 	[F|_] = ColorList,
 	?assertMatch({red, 1000}, F),
@@ -84,15 +86,17 @@ uncolor_outputs() ->
 issue_color() ->
 	Outputs = colored_outputs(red),
 	Inputs = outputs_to_inputs(Outputs),
+	Unspents = inputs_to_unspents(Inputs),
 	[H|_] = Outputs,
 	Color = crypto:hash(ripemd160, crypto:hash(sha256, H#utxop.script)),
-	RealColor = lib_color:get_issue_color(Inputs, fun lookup_tx/2),
+	RealColor = lib_color:get_issue_color(Inputs, Unspents),
 	?assertEqual(Color, RealColor).
 
 single_color_quant() ->
 	?assertMatch({?Uncolored, []}, lib_color:get_color_quant([], 10)),
 	Inputs = colored_inputs(red),
-	ColorList = lib_color:build_color_list(Inputs, fun lookup_tx/2),
+	Unspents = inputs_to_unspents(Inputs),
+	ColorList = lib_color:build_color_list(Inputs, Unspents),
 	%?debugFmt("~p~n", [ColorList]),
 	{Color, NewColorList} = lib_color:get_color_quant(ColorList, 1000),
 	?assertMatch(red, Color),
@@ -101,7 +105,8 @@ single_color_quant() ->
 
 partial_quant() ->
 	Inputs = colored_inputs(red),
-	ColorList = lib_color:build_color_list(Inputs, fun lookup_tx/2),
+	Unspents = inputs_to_unspents(Inputs),
+	ColorList = lib_color:build_color_list(Inputs, Unspents),
 	{Color, NewColorList} = lib_color:get_color_quant(ColorList, 999),
 	?assertMatch(red, Color),
 	[H|_] = NewColorList,
@@ -109,7 +114,8 @@ partial_quant() ->
 
 multi_partial_quant() ->
 	Inputs = colored_inputs(red),
-	ColorList = lib_color:build_color_list(Inputs, fun lookup_tx/2),
+	Unspents = inputs_to_unspents(Inputs),
+	ColorList = lib_color:build_color_list(Inputs, Unspents),
 	{Color, NewColorList} = lib_color:get_color_quant(ColorList, 1240),
 	?assertMatch(red, Color),
 	[H|_] = NewColorList,
@@ -117,7 +123,8 @@ multi_partial_quant() ->
 
 total_fill_quant() ->
 	Inputs = colored_inputs(red),
-	ColorList = lib_color:build_color_list(Inputs, fun lookup_tx/2),
+	Unspents = inputs_to_unspents(Inputs),
+	ColorList = lib_color:build_color_list(Inputs, Unspents),
 	TotalQuant = get_total_quant(ColorList, red), 
 	{Color, NewColorList} = lib_color:get_color_quant(ColorList, TotalQuant),
 	?assertMatch(red, Color),
@@ -125,7 +132,8 @@ total_fill_quant() ->
 
 multi_fill_quant() ->
 	Inputs = colored_inputs(red),
-	ColorList = lib_color:build_color_list(Inputs, fun lookup_tx/2),
+	Unspents = inputs_to_unspents(Inputs),
+	ColorList = lib_color:build_color_list(Inputs, Unspents),
 	FinalList = lists:foldl(fun(_,L) ->
 					{_,CList} = lib_color:get_color_quant(L, 1),
 						CList
@@ -137,7 +145,8 @@ multi_fill_quant() ->
 
 multi_color_quant() ->
 	Inputs = colored_inputs(red) ++ colored_inputs(blue),
-	ColorList = lib_color:build_color_list(Inputs, fun lookup_tx/2),
+	Unspents = inputs_to_unspents(Inputs),
+	ColorList = lib_color:build_color_list(Inputs, Unspents),
 	%?debugFmt("~p~n", [ColorList]),
 	TotalRed = get_total_quant(ColorList, red),
 	TotalBlue = get_total_quant(ColorList, blue),
@@ -151,7 +160,8 @@ multi_color_quant() ->
 
 mixed_colors() ->
 	Inputs = colored_inputs(red) ++ colored_inputs(blue),
-	ColorList = lib_color:build_color_list(Inputs, fun lookup_tx/2),
+	Unspents = inputs_to_unspents(Inputs),
+	ColorList = lib_color:build_color_list(Inputs, Unspents),
 	TotalRed = get_total_quant(ColorList, red),
 	{Color, CL2} = lib_color:get_color_quant(ColorList, TotalRed+2000),
 	?assertEqual(?Uncolored, Color),
@@ -167,7 +177,8 @@ zero_color_quant() ->
 %%% Issuance Tests
 simple_issuance() ->
 	Inputs = colored_inputs(red),
-	IC = lib_color:get_issue_color(Inputs, fun lookup_tx/2), %won't be red
+	Unspents = inputs_to_unspents(Inputs),
+	IC = lib_color:get_issue_color(Inputs, Unspents), %won't be red
 	QList = [100],
 	O = create_output(),
 	{RColorList, IssuedOutputs} = lib_color:do_issuance(IC, QList, [O]),
@@ -180,7 +191,8 @@ simple_issuance() ->
 
 multiple_issuance() ->
 	Inputs = colored_inputs(red),
-	IC = lib_color:get_issue_color(Inputs, fun lookup_tx/2), %won't be red
+	Unspents = inputs_to_unspents(Inputs),
+	IC = lib_color:get_issue_color(Inputs, Unspents), %won't be red
 	QList = [100,1000,10000,99999],
 	Outputs = [create_output(), create_output(?Uncolored, 0, 1), create_output(?Uncolored, 0, 2)],
 	{RColorList, IssuedOutputs} = lib_color:do_issuance(IC, QList, Outputs),
@@ -195,7 +207,8 @@ multiple_issuance() ->
 
 uncolored_issuance() ->
 	Inputs = colored_inputs(red),
-	IC = lib_color:get_issue_color(Inputs, fun lookup_tx/2), %won't be red
+	Unspents = inputs_to_unspents(Inputs),
+	IC = lib_color:get_issue_color(Inputs, Unspents), %won't be red
 	QList = [99999999],
 	Outputs = [create_output(), create_output(blue, 0, 1)],
 	{_, IssuedOutputs} = lib_color:do_issuance(IC, QList, Outputs),
@@ -205,7 +218,8 @@ uncolored_issuance() ->
 
 empty_marker_issue() ->
 	Inputs = colored_inputs(red),
-	IC = lib_color:get_issue_color(Inputs, fun lookup_tx/2), %won't be red
+	Unspents = inputs_to_unspents(Inputs),
+	IC = lib_color:get_issue_color(Inputs, Unspents), %won't be red
 	QList = [0],
 	Outputs = [create_output(red, 10000, 0), create_output(blue, 100, 1)],
 	{_, IssuedOutputs} = lib_color:do_issuance(IC, QList, Outputs),
@@ -217,7 +231,8 @@ empty_marker_issue() ->
 
 one_transfer() ->
 	Inputs = colored_inputs(red),
-	CL = lib_color:build_color_list(Inputs, fun lookup_tx/2),
+	Unspents = inputs_to_unspents(Inputs),
+	CL = lib_color:build_color_list(Inputs, Unspents),
 	QList = [100],
 	O = create_output(),
 	TransferOutputs = lib_color:do_transfers(CL, QList, [O]),
@@ -229,7 +244,8 @@ one_transfer() ->
 
 multiple_transfers() ->
 	Inputs = colored_inputs(red) ++ colored_inputs(blue) ++ colored_inputs(?Uncolored),
-	CL = lib_color:build_color_list(Inputs, fun lookup_tx/2),
+	Unspents = inputs_to_unspents(Inputs),
+	CL = lib_color:build_color_list(Inputs, Unspents),
 	TotalRed = get_total_quant(CL, red),
 	TotalBlue = get_total_quant(CL, blue),
 	%TotalUncolored = get_total_quant(CL, ?Uncolored),
@@ -264,7 +280,8 @@ multiple_transfers() ->
 
 multiple_boundary_transfers() ->
 	Inputs = colored_inputs(red) ++ colored_inputs(blue) ++ colored_inputs(?Uncolored),
-	CL = lib_color:build_color_list(Inputs, fun lookup_tx/2),
+	Unspents = inputs_to_unspents(Inputs),
+	CL = lib_color:build_color_list(Inputs, Unspents),
 	TotalRed = get_total_quant(CL, red),
 	TotalBlue = get_total_quant(CL, blue),
 	%TotalUncolored = get_total_quant(CL, ?Uncolored),
@@ -295,7 +312,8 @@ multiple_boundary_transfers() ->
 
 full_color_issuance_only() ->
 	Inputs = colored_inputs(red),
-	IC = lib_color:get_issue_color(Inputs, fun lookup_tx/2),
+	Unspents = inputs_to_unspents(Inputs),
+	IC = lib_color:get_issue_color(Inputs, Unspents),
 	QList = [100,100,100,100],
 	MOutput = create_output(?Uncolored, 0, 4),
 	Marker = create_marker(MOutput, QList),
@@ -304,7 +322,7 @@ full_color_issuance_only() ->
 		 create_output(?Uncolored, 0, 2),
 		 create_output(?Uncolored, 0, 3),
 		 Marker],
-	TransferOutputs = lib_color:color_outputs(Inputs, O, fun lookup_tx/2),
+	TransferOutputs = lib_color:color_outputs(Inputs, O, Unspents),
 	%?debugFmt("~p~n", [IssuedOutputs]),
 	[H|T] = TransferOutputs,
 	?assertEqual(5, length(TransferOutputs)),
@@ -325,13 +343,14 @@ full_color_issuance_only() ->
 
 full_color_transfer() ->
 	Inputs = colored_inputs(red),
+	Unspents = inputs_to_unspents(Inputs),
 	QList = [1000, 100],
 	MOutput = create_output(),
 	Marker = create_marker(MOutput, QList),
 	O = [Marker,
 		 create_output(?Uncolored, 0, 1),
 			create_output(?Uncolored, 0, 2)],
-	TransferOutputs = lib_color:color_outputs(Inputs, O, fun lookup_tx/2),
+	TransferOutputs = lib_color:color_outputs(Inputs, O, Unspents),
 	%?debugFmt("~p~n", [IssuedOutputs]),
 	[H|T] = TransferOutputs,
 	?assertEqual(3, length(TransferOutputs)),
@@ -346,7 +365,8 @@ full_color_transfer() ->
 
 multi_color_transfer_issue() ->
 	Inputs = colored_inputs(red) ++ colored_inputs(blue),
-	IC = lib_color:get_issue_color(Inputs, fun lookup_tx/2),
+	Unspents = inputs_to_unspents(Inputs),
+	IC = lib_color:get_issue_color(Inputs, Unspents),
 	QList = [100000, 1000, 2901, 100, 1000000],
 	MOutput = create_output(?Uncolored, 0, 2),
 	Marker = create_marker(MOutput, QList),
@@ -357,7 +377,7 @@ multi_color_transfer_issue() ->
 			create_output(?Uncolored, 0, 4),
 			create_output(?Uncolored, 0, 5),
 			create_output(?Uncolored, 0, 6)],
-	TransferOutputs = lib_color:color_outputs(Inputs, O, fun lookup_tx/2),
+	TransferOutputs = lib_color:color_outputs(Inputs, O, Unspents),
 	[H|T] = TransferOutputs,
 	?assertEqual(7, length(TransferOutputs)),
 	?assertEqual(IC, H#btxout.color),
@@ -387,7 +407,8 @@ rainbow_colors() ->
 			 colored_inputs(red) ++
 			 colored_inputs(purple) ++
 			 colored_inputs(black),
-	ColorList = lib_color:build_color_list(Inputs, fun lookup_tx/2),
+	Unspents = inputs_to_unspents(Inputs),
+	ColorList = lib_color:build_color_list(Inputs, Unspents),
 	TRed = 2901,
 	TBlue = get_total_quant(ColorList, blue),
 	TPurple = get_total_quant(ColorList, purple),
@@ -403,7 +424,7 @@ rainbow_colors() ->
 			create_output(?Uncolored, 0, 5),
 			create_output(?Uncolored, 0, 6),
 			create_output(?Uncolored, 0, 7)],
-	TransferOutputs = lib_color:color_outputs(Inputs, O, fun lookup_tx/2),
+	TransferOutputs = lib_color:color_outputs(Inputs, O, Unspents),
 	[H|T] = TransferOutputs,
 	?assertEqual(8, length(TransferOutputs)),
 	?assertEqual(?Uncolored, H#btxout.color), % Marker
@@ -433,13 +454,14 @@ rainbow_colors() ->
 
 nefarious_markers() ->
 	Inputs = colored_inputs(red),
+	Unspents = inputs_to_unspents(Inputs),
 	QList = [100.3, -200],
 	MOutput = create_output(?Uncolored,0,1),
 	Marker = create_marker(MOutput, QList),
 	O = [create_output(),
 		 Marker,
 			create_output(?Uncolored, 0, 2)],
-	TransferOutputs = lib_color:color_outputs(Inputs, O, fun lookup_tx/2),
+	TransferOutputs = lib_color:color_outputs(Inputs, O, Unspents),
 	[H|T] = TransferOutputs,
 	?assertEqual(3, length(TransferOutputs)),
 	?assertEqual(0, H#btxout.quantity),
@@ -449,8 +471,8 @@ nefarious_markers() ->
 	?assertEqual(0,H2#btxout.quantity).
 
 color_quantity() ->
-	Outputs = colored_outputs(red),
-	WalletUnspents = outputs_to_dict(Outputs),
+	Unspents = colored_outputs(red),
+	WalletUnspents = unspents_to_dict(Unspents),
 	ColoredUnspents = lib_transact:get_colored_unspents(dict, red, WalletUnspents),
 	?assertEqual(dict:size(WalletUnspents), dict:size(ColoredUnspents)),
 	Quant = lib_transact:get_quantity_unspents(dict, red, WalletUnspents),
@@ -493,7 +515,8 @@ interleave() ->
 			 colored_inputs(red) ++
 			 colored_inputs(?Uncolored) ++
 			 colored_inputs(black),
-	ColorList = lib_color:build_color_list(Inputs, fun lookup_tx/2),
+	Unspents = inputs_to_unspents(Inputs),
+	ColorList = lib_color:build_color_list(Inputs, Unspents),
 	TRed = 2901,
 	TBlack = get_total_quant(ColorList, black),
 	QList = [TRed, 0, TRed, 0, TBlack],
@@ -505,7 +528,7 @@ interleave() ->
 			create_output(?Uncolored, 0, 3),
 			create_output(?Uncolored, 0, 4),
 			create_output(?Uncolored, 0, 5)],
-	TransferOutputs = lib_color:color_outputs(Inputs, O, fun lookup_tx/2),
+	TransferOutputs = lib_color:color_outputs(Inputs, O, Unspents),
 	[H|T] = TransferOutputs,
 	?assertEqual(6, length(TransferOutputs)),
 	?assertEqual(?Uncolored, H#btxout.color), % Marker
@@ -532,7 +555,8 @@ partial_interleave() ->
 			 colored_inputs(red) ++
 			 colored_inputs(?Uncolored) ++
 			 colored_inputs(black),
-	ColorList = lib_color:build_color_list(Inputs, fun lookup_tx/2),
+	Unspents = inputs_to_unspents(Inputs),
+	ColorList = lib_color:build_color_list(Inputs, Unspents),
 	TRed = 2901,
 	TBlack = get_total_quant(ColorList, black),
 	QList = [TRed*2, 0, 0, TBlack],
@@ -543,7 +567,7 @@ partial_interleave() ->
 			create_output(?Uncolored, 0, 2),
 			create_output(?Uncolored, 0, 3),
 			create_output(?Uncolored, 0, 4)],
-	TransferOutputs = lib_color:color_outputs(Inputs, O, fun lookup_tx/2),
+	TransferOutputs = lib_color:color_outputs(Inputs, O, Unspents),
 	[H|T] = TransferOutputs,
 	?assertEqual(5, length(TransferOutputs)),
 	?assertEqual(?Uncolored, H#btxout.color), % Marker
@@ -563,7 +587,8 @@ partial_interleave() ->
 
 uncolored_issue_transfer() ->
 	Inputs = colored_inputs(?Uncolored) ++ colored_inputs(red),
-	IC = lib_color:get_issue_color(Inputs, fun lookup_tx/2),
+	Unspents = inputs_to_unspents(Inputs),
+	IC = lib_color:get_issue_color(Inputs, Unspents),
 	QList = [100000, 10000, 2900, 1],
 	MOutput = create_output(),
 	Marker = create_marker(MOutput, QList),
@@ -572,7 +597,7 @@ uncolored_issue_transfer() ->
 			Marker,
 			create_output(?Uncolored, 0, 3),
 			create_output(?Uncolored, 0, 4)],
-	TransferOutputs = lib_color:color_outputs(Inputs, O, fun lookup_tx/2),
+	TransferOutputs = lib_color:color_outputs(Inputs, O, Unspents),
 	[H|T] = TransferOutputs,
 	?assertEqual(5, length(TransferOutputs)),
 	?assertEqual(IC, H#btxout.color),
@@ -592,8 +617,9 @@ uncolored_issue_transfer() ->
 
 colored_issue_transfer() ->
 	Inputs = colored_inputs(red) ++ colored_inputs(blue),
-	IC = lib_color:get_issue_color(Inputs, fun lookup_tx/2),
-	ColorList = lib_color:build_color_list(Inputs, fun lookup_tx/2),
+	Unspents = inputs_to_unspents(Inputs),
+	IC = lib_color:get_issue_color(Inputs, Unspents),
+	ColorList = lib_color:build_color_list(Inputs, Unspents),
 	TRed = get_total_quant(ColorList, red),
 	TBlue = get_total_quant(ColorList, blue),
 	QList = [100000, 100, TRed, TBlue],
@@ -604,7 +630,7 @@ colored_issue_transfer() ->
 			Marker,
 			create_output(?Uncolored, 0, 3),
 			create_output(?Uncolored, 0, 4)],
-	TransferOutputs = lib_color:color_outputs(Inputs, O, fun lookup_tx/2),
+	TransferOutputs = lib_color:color_outputs(Inputs, O, Unspents),
 	[H|T] = TransferOutputs,
 	?assertEqual(5, length(TransferOutputs)),
 	?assertEqual(IC, H#btxout.color),
@@ -627,7 +653,8 @@ colored_issue_transfer() ->
 % Should discard overflow
 marker_overrun() ->
 	Inputs = colored_inputs(red),
-	IC = lib_color:get_issue_color(Inputs, fun lookup_tx/2),
+	Unspents = inputs_to_unspents(Inputs),
+	IC = lib_color:get_issue_color(Inputs, Unspents),
 	QList = [100000, 10000, 2800, 101],
 	MOutput = create_output(),
 	Marker = create_marker(MOutput, QList),
@@ -635,7 +662,7 @@ marker_overrun() ->
 			create_output(?Uncolored, 0, 2),
 			Marker,
 			create_output(?Uncolored, 0, 3)],
-	TransferOutputs = lib_color:color_outputs(Inputs, O, fun lookup_tx/2),
+	TransferOutputs = lib_color:color_outputs(Inputs, O, Unspents),
 	[H|T] = TransferOutputs,
 	?assertEqual(4, length(TransferOutputs)),
 	?assertEqual(IC, H#btxout.color),
@@ -655,6 +682,7 @@ marker_overrun() ->
 marker_no_input() ->
 	Inputs = [],
 	_IC = lib_color:get_issue_color(Inputs, []),
+	Unspents = inputs_to_unspents(Inputs),
 	QList = [100000, 10000, 2800, 101],
 	MOutput = create_output(),
 	Marker = create_marker(MOutput, QList),
@@ -662,7 +690,7 @@ marker_no_input() ->
 			create_output(?Uncolored, 0, 2),
 			Marker,
 			create_output(?Uncolored, 0, 3)],
-	TransferOutputs = lib_color:color_outputs(Inputs, O, fun lookup_tx/2),
+	TransferOutputs = lib_color:color_outputs(Inputs, O, Unspents),
 	[H|_T] = TransferOutputs,
 	?assertEqual(4, length(TransferOutputs)),
 	?assertEqual(?Uncolored, H#btxout.color),
@@ -674,7 +702,8 @@ marker_no_input() ->
 % lost in OP_RETURN outputs
 multiple_markers() ->
 	Inputs = colored_inputs(red),
-	IC = lib_color:get_issue_color(Inputs, fun lookup_tx/2),
+	Unspents = inputs_to_unspents(Inputs),
+	IC = lib_color:get_issue_color(Inputs, Unspents),
 	QList = [100000, 2800, 101],
 	QList2 = [200000, 1800, 201],
 	MOutput = create_output(?Uncolored, 0, 1),
@@ -685,7 +714,7 @@ multiple_markers() ->
 		 Marker,
 		 Marker2,
 		 create_output(?Uncolored, 0, 4)],
-	TransferOutputs = lib_color:color_outputs(Inputs, O, fun lookup_tx/2),
+	TransferOutputs = lib_color:color_outputs(Inputs, O, Unspents),
 	[H|T] = TransferOutputs,
 	?assertEqual(4, length(TransferOutputs)),
 	?assertEqual(IC, H#btxout.color),
@@ -711,9 +740,9 @@ is_colored() ->
 
 issue_and_find() ->
 	Inputs = colored_inputs(red),
-	IC = lib_color:get_issue_color(Inputs, fun lookup_tx/2),
-	Outputs = colored_outputs(red),
-	WalletUnspents = outputs_to_dict(Outputs),
+	Unspents = colored_outputs(red),
+	WalletUnspents = unspents_to_dict(Unspents),
+	IC = lib_color:get_issue_color(Inputs, WalletUnspents),
 	ColoredUnspents = lib_transact:get_colored_unspents(dict, red, WalletUnspents),
 	X = lib_color:find_color(IC, lib_kd:oldest(ColoredUnspents)),
 	?assertEqual(1, length(X)).
@@ -726,16 +755,16 @@ create_and_compare() ->
 	?assertEqual(A, B).
 
 colors() ->
-	Outputs = colored_outputs(red),
-	WalletUnspents = outputs_to_dict(Outputs),
+	Unspents = colored_outputs(red),
+	WalletUnspents = unspents_to_dict(Unspents),
 	C = lib_color:colors(lib_kd:oldest(WalletUnspents)),
 	?assertEqual(1, length(C)),
 	[Color|_] = C,
 	?assertEqual(red, Color),
-	Outputs2 = colored_outputs(red) ++
+	Unspents2 = colored_outputs(red) ++
 		colored_outputs(blue) ++
 		colored_outputs(black),
-	WalletUnspents2 = outputs_to_dict(Outputs2),
+	WalletUnspents2 = unspents_to_dict(Unspents2),
 	C2 = lib_color:colors(lib_kd:oldest(WalletUnspents2)),
 	?assertEqual(3, length(C2)),
 	[_|T] = C2,
@@ -1066,10 +1095,13 @@ get_total_quant(ColorList, Color) ->
 
 %%% Wallet / Utxo Dict
 
-outputs_to_dict(Utxo) ->
+unspents_to_dict(Utxo) ->
 	lists:foldl(fun(O, Acc) ->
 					dict:store(O#utxop.hash_index, O, Acc)
 				end, dict:new(), Utxo).
-		
 
-lookup_tx(X,Y) -> fakeutxo:lookup_tx(X,Y).
+inputs_to_unspents(Inputs) ->
+	lists:foldl(fun(I, Acc) ->
+	            {ok, U} = fakeutxo:lookup_tx(I#btxin.txhash, I#btxin.txindex),
+	            dict:store(U#utxop.hash_index, U, Acc)
+	    end, dict:new(), Inputs).

@@ -275,19 +275,19 @@ find_marker(Outputs, Issuance) ->
 	end.
 
 color_outputs([], O, _) -> uncolor_all(O);
-color_outputs(Inputs, Outputs, GetFun) when is_function(GetFun) ->
+color_outputs(Inputs, Outputs, UnspentDict) ->
 	case find_marker(Outputs) of
 		{[], _, _, _} ->
 			uncolor_all(Outputs);
 		{Q, [], M, Transfer} ->
 			TransferList = do_transfers(build_color_list(Inputs,
-						GetFun),
+						UnspentDict),
 				         Q, Transfer),
 			[M|TransferList];
 		{Q, Issuance, M, Transfer} ->
-			IC = get_issue_color(Inputs, GetFun),
+			IC = get_issue_color(Inputs, UnspentDict),
 			{Q2, IssuedList} = do_issuance(IC, Q, Issuance),
-			ColorList = build_color_list(Inputs, GetFun),
+			ColorList = build_color_list(Inputs, UnspentDict),
 			TransferList = do_transfers(ColorList,
 				         Q2, Transfer),
 			IssuedList ++ [M] ++ TransferList;
@@ -369,10 +369,10 @@ do_issuance(IC, M, IssuedOutputs, Acc) ->
 	end.
 
 get_issue_color([], _) -> ?Uncolored;
-get_issue_color(Inputs, GetFun) ->
+get_issue_color(Inputs, UnspentDict) ->
 	try
 		[Tx|_] = Inputs,
-		{ok, N} = GetFun(Tx#btxin.txhash, Tx#btxin.txindex),
+		N = dict:fetch({Tx#btxin.txhash, Tx#btxin.txindex}, UnspentDict),
 		crypto:hash(ripemd160, crypto:hash(sha256, N#utxop.script))
 	catch
 		_:_ -> throw(coloring_error)
@@ -458,11 +458,11 @@ color_address(ColorAddress) when is_list(ColorAddress) ->
 uncolor_all(O) ->
 	lists:map(fun(R) -> R#btxout{color=?Uncolored, quantity=0} end, O).
 
-build_color_list(Inputs, GetFun) ->
+build_color_list(Inputs, UnspentDict) ->
 	try
 		lists:filtermap(fun(R) -> 
-				  {ok, N} =
-				  	GetFun(R#btxin.txhash, R#btxin.txindex),
+				  N =
+				  	dict:fetch({R#btxin.txhash, R#btxin.txindex}, UnspentDict),
 					case N#utxop.color of
 						?Uncolored ->
 							false;

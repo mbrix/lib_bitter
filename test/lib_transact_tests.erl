@@ -106,6 +106,7 @@ outputs_colored() ->
 simple_pay() ->
 	Change = lib_address:new("1ANGt72gYkAPts4pV5hY5E3QUuU2vEMfBB"),
 	Unspents = ets:tab2list(fakeutxo),
+	UnspentsDict = unspents_to_dict(Unspents), 
 	P = lib_transact:payee("1ANGt72gYkAPts4pV5hY5E3QUuU2vEMfBB",
                            "1ANGt72gYkAPts4pV5hY5E3QUuU2vEMfBB",
                            chartreuse,
@@ -118,12 +119,13 @@ simple_pay() ->
 	% Finalize payment obj then recolor outputs
 	{ok, _, _, Tx} = lib_transact:finalize(Payment, Remaining, Change),
 	?assertEqual(4, length(Tx#btxdef.txoutputs)),
-	RecoloredOutputs = lib_color:color_outputs(Tx#btxdef.txinputs, Tx#btxdef.txoutputs, fun fakeutxo:lookup_tx/2),
+	RecoloredOutputs = lib_color:color_outputs(Tx#btxdef.txinputs, Tx#btxdef.txoutputs, UnspentsDict),
 	?assert(Tx#btxdef.txoutputs =:= RecoloredOutputs).
 
 multiple_pay() ->
 	Change = lib_address:new("1ANGt72gYkAPts4pV5hY5E3QUuU2vEMfBB"),
 	Unspents = ets:tab2list(fakeutxo),
+	UnspentsDict = unspents_to_dict(Unspents), 
 	P = lib_transact:payee("1ANGt72gYkAPts4pV5hY5E3QUuU2vEMfBB",
                            "1ANGt72gYkAPts4pV5hY5E3QUuU2vEMfBB",
                            chartreuse,
@@ -151,7 +153,7 @@ multiple_pay() ->
 	{ok, _, _, Tx} = lib_transact:finalize(Payment, R, Change),
 	?assertEqual(9, length(Tx#btxdef.txoutputs)),
 	%?debugFmt("~p~n~p~n", [Tx#btxdef.txinputs, Tx#btxdef.txoutputs]),
-	RecoloredOutputs = lib_color:color_outputs(Tx#btxdef.txinputs, Tx#btxdef.txoutputs, fun fakeutxo:lookup_tx/2),
+	RecoloredOutputs = lib_color:color_outputs(Tx#btxdef.txinputs, Tx#btxdef.txoutputs, UnspentsDict),
 	%?debugFmt("~p~n~p~n", [Tx#btxdef.txoutputs, RecoloredOutputs]),
 	?assert(Tx#btxdef.txoutputs =:= RecoloredOutputs).
 
@@ -181,6 +183,7 @@ payment_error() ->
 
 simple_issue() ->
 	Unspents = ets:tab2list(fakeutxo),
+	UnspentsDict = unspents_to_dict(Unspents), 
 	C = #utxop{hash_index = {<<5,88,152,203,2,63,74,167,62,207,11,66,59,31,127,88,176,81,5,
                   229,240,148,98,68,171,67,72,165,96,176,194,34>>, 1},
                color = ?Uncolored,
@@ -194,7 +197,7 @@ simple_issue() ->
                            100000000),
 	P2 = lib_transact:issue(lib_transact:payment(), C, P),
 	{ok, _, _, Tx} = lib_transact:finalize(P2, Unspents, Change),
-	RecoloredOutputs = lib_color:color_outputs(Tx#btxdef.txinputs, Tx#btxdef.txoutputs, fun fakeutxo:lookup_tx/2),
+	RecoloredOutputs = lib_color:color_outputs(Tx#btxdef.txinputs, Tx#btxdef.txoutputs, UnspentsDict),
 	?assert(Tx#btxdef.txoutputs =:= RecoloredOutputs),
 	P2.
 
@@ -202,6 +205,7 @@ simple_issue() ->
 
 multi_issue() ->
 	Unspents = ets:tab2list(fakeutxo),
+	UnspentsDict = unspents_to_dict(Unspents), 
 	% Need to manually specify an uncolored Issue address
 	C = #utxop{hash_index = {<<5,88,152,203,2,63,74,167,62,207,11,66,59,31,127,88,176,81,5,
                   229,240,148,98,68,171,67,72,165,96,176,194,34>>, 1},
@@ -227,7 +231,7 @@ multi_issue() ->
 	Payment3 = lib_transact:issue(Payment2, P3),
 	{ok, _, _, Tx} = lib_transact:finalize(Payment3, Unspents, Change),
 	%?debugFmt("~p~n~p~n", [Tx#btxdef.txinputs, Tx#btxdef.txoutputs]),
-	RecoloredOutputs = lib_color:color_outputs(Tx#btxdef.txinputs, Tx#btxdef.txoutputs, fun fakeutxo:lookup_tx/2),
+	RecoloredOutputs = lib_color:color_outputs(Tx#btxdef.txinputs, Tx#btxdef.txoutputs, UnspentsDict),
 	%?debugFmt("~p~n~p~n", [Tx#btxdef.txoutputs, RecoloredOutputs]),
 	?assert(Tx#btxdef.txoutputs =:= RecoloredOutputs),
 	P2.
@@ -238,6 +242,7 @@ issue_transfer() ->
 	Payment = simple_issue(),
 	Change = lib_address:new("1ANGt72gYkAPts4pV5hY5E3QUuU2vEMfBB"),
 	Unspents = ets:tab2list(fakeutxo),
+	UnspentsDict = unspents_to_dict(Unspents), 
 	P = lib_transact:payee("1ANGt72gYkAPts4pV5hY5E3QUuU2vEMfBB",
                            "1ANGt72gYkAPts4pV5hY5E3QUuU2vEMfBB",
                            chartreuse,
@@ -247,7 +252,7 @@ issue_transfer() ->
 	{ok, _, _, Tx} = lib_transact:finalize(Payment2, Remaining, Change),
 	?assert(length(Tx#btxdef.txoutputs) =:= 5),
 	%?debugFmt("~p~n~p~n", [Tx#btxdef.txinputs, Tx#btxdef.txoutputs]),
-	RecoloredOutputs = lib_color:color_outputs(Tx#btxdef.txinputs, Tx#btxdef.txoutputs, fun fakeutxo:lookup_tx/2),
+	RecoloredOutputs = lib_color:color_outputs(Tx#btxdef.txinputs, Tx#btxdef.txoutputs, UnspentsDict),
 	%?debugFmt("~p~n~p~n", [Tx#btxdef.txoutputs, RecoloredOutputs]),
 	?assert(Tx#btxdef.txoutputs =:= RecoloredOutputs).
 
@@ -381,3 +386,15 @@ transact_test_() ->
 		{"Minimal uncolored spend", fun minimal_spend/0}
    ]
   }.
+
+
+
+%% Helper functions
+%%
+
+unspents_to_dict(Utxo) ->
+	lists:foldl(fun(O, Acc) ->
+					dict:store(O#utxop.hash_index, O, Acc)
+				end, dict:new(), Utxo).
+
+
