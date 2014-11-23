@@ -40,14 +40,14 @@ stop(_) ->
 
 parse_serialize() ->
     RawBlock = hex:hexstr_to_bin("F9BEB4D9D80000000100000046441C1EB8D69E9ABBE79DF5D965DD9F30A60476EC810CB83C8851B5000000004E2D36D427F313825CB27C1649BDEFF1FBDB4D55B2602069AEBA68D3113565AAA4257249FFFF001D2EF42DD50101000000010000000000000000000000000000000000000000000000000000000000000000FFFFFFFF0804FFFF001D022002FFFFFFFF0100F2052A010000004341046D8F7D934354FE18806DDE9C2362A4693A4C6F55E4E23823419545BF82C39BF6AF29E38CE585F570960897BC60A3B616C4028322A891046DCD3C4373A24A1577AC00000000"),
-    {_, BlockRecord, _} = lib_parse:extract(RawBlock),
+    {_, BlockRecord, _, _} = lib_parse:extract(RawBlock),
     BinBlock = lib_block:serialize(BlockRecord),
     ?assertEqual(RawBlock,BinBlock).
 
 complicated_serialize() ->
     HexBlock = erlang:binary_to_list(lib_test:data("rawblock2.hex")),
     RawBlock = hex:hexstr_to_bin(HexBlock),
-    {_, BlockRecord, _} = lib_parse:extract(RawBlock),
+    {_, BlockRecord, _, _} = lib_parse:extract(RawBlock),
     BinBlock = lib_block:serialize(BlockRecord),
     %?debugFmt("~p~n~p~n", [RawBlock, BinBlock]),
     ?assertEqual(hex:bin_reverse(RawBlock),hex:bin_reverse(BinBlock)).
@@ -62,7 +62,7 @@ color() ->
 json_serialize() ->
     HexBlock = erlang:binary_to_list(lib_test:data("rawblock2.hex")),
     RawBlock = hex:hexstr_to_bin(HexBlock),
-    {_, BlockRecord, _} = lib_parse:extract(RawBlock),
+    {_, BlockRecord, _, _} = lib_parse:extract(RawBlock),
     JsonBlock = lib_block:to_json(BlockRecord),
     D = jiffy:decode(JsonBlock, [return_maps]),
     ?assertEqual(hex:bin_reverse(hex:hexstr_to_bin(binary_to_list(maps:get(<<"hash">>, D)))),

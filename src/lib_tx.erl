@@ -552,7 +552,7 @@ add_outputs(O, Value) ->
 
 
 to_json(Tx) when is_binary(Tx) ->
-    [Tx2] = lib_parse:parse_tx(Tx),
+    Tx2 = lib_parse:parse_tx(Tx),
     to_json(Tx2);
 to_json(Tx) when is_record(Tx, btxdef) ->
     Hexstr = iolist_to_binary(hex:bin_to_hexstr(serialize(Tx))),

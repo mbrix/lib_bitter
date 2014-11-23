@@ -27,54 +27,54 @@
 -module(lib_parse).
 -author('mbranton@emberfinancial.com').
 
--export([parse/2,
-	     parse_block/2,
+-export([parse/1,
+	     parse_block/1,
+	     parse_raw_block/1,
 	     parse_raw/1,
 	     parse_tx/1,
 		 parse_script/1,
 	     getTransactions/2,
-	     extract/1]).
+	     extract/1,
+	     extract_header/1]).
 
 -define(MAGICBYTE, 16#D9B4BEF9).
 -include("bitter.hrl").
 
 parse_raw(Bin) ->
-    {_, BlockRecord, _} = extract(Bin),
+    {continue, BlockRecord, _BlockOffset, _Offsets} = extract(Bin),
     BlockRecord.
 
-parse(Fname, Fun) ->
+parse(Fname) ->
 	case file:read_file(Fname) of
-		{ok, Data} ->
-			extractLoop(Data, Fun),
-			{reply, ok, {}};
-		{error, Reason} ->
-			{stop, Reason, {Fname}}
+		{ok, Data} -> extractLoop(Data);
+		{error, Reason} -> {stop, Reason, {Fname}}
 	end.
 
-parse_block(Block, Fun) ->
+parse_block(Block) ->
 	Size = size(Block),
 	B = erlang:iolist_to_binary([<<?MAGICBYTE:32/little, 
     						     Size:32/little>>,
 								 Block]),
-	extractLoop(B, Fun).
+	extractLoop(B).
+
+parse_raw_block(Block) ->
+    extractLoop(Block).
 
 parse_tx(TxData) ->
-	[T, _] = getTransactions(1, TxData),
+	[[T], _, _] = getTransactions(1, TxData),
 	T.
 
-extractLoop(Data, CallBackFun) -> extractLoop(Data, 10000000, CallBackFun).
-extractLoop(_, 0, _) -> ok;
-extractLoop(Data, Loops, CallBackFun) ->
+extractLoop(Data) ->
 	case extract(Data) of
-		{ok, Block2, Next} ->
-            %io:format("~p~n", [hex:bin_to_hexstr(binary:part(Data, {0, byte_size(Data) - byte_size(Next)}))]),
-			   CallBackFun(Block2),
-			   extractLoop(Next, Loops-1, CallBackFun);
+		{ok, Block2, TxOffsets, Next} ->
+		    BlockSize = byte_size(Next) - byte_size(Data),
+            {continue, Block2,
+             {byte_size(Data), BlockSize}, TxOffsets,
+             fun() -> extractLoop(Next) end};
 		{scan, Next} ->
 			<<_:8, Bin/binary>> = Next,
-			extractLoop(Bin, Loops, CallBackFun);
-		ok ->
-			ok
+			extractLoop(Bin);
+		ok -> done
 	end.
 
 % Normalize the return into a finger count
@@ -236,9 +236,9 @@ getTxOutputs(OutputCount, Rest, Acc, Index) ->
 	   Address = lib_address:script_to_address(ScriptExtendedInfo, Script),
 	   getTxOutputs(OutputCount-1, Next, [#btxout{txindex=Index, value=Value, script=Script, address=Address, info=strip_info_result(ScriptExtendedInfo)}|Acc], Index+1).
 
-getTransactions(TXCount, Tbin) -> getTransactions(TXCount, Tbin, []).
-getTransactions(0, Tbin, Acc) -> [Acc, Tbin];
-getTransactions(TXCount, Tbin, Acc) ->
+getTransactions(TXCount, Tbin) -> getTransactions(TXCount, Tbin, [], []).
+getTransactions(0, Tbin, Acc, Offsets) -> [Acc, Tbin, Offsets];
+getTransactions(TXCount, Tbin, Acc, Offsets) ->
 	<< TransactionVersion:32/little, Rest/binary >> = Tbin,
 	[InputCount, Inputs] = getVarInt(Rest),
 	[TxInputs, Rest2] = getTxInputs(InputCount, Inputs),
@@ -253,7 +253,8 @@ getTransactions(TXCount, Tbin, Acc) ->
 										      outputcount=OutputCount,
 										      txlocktime=TransactionLockTime,
 										      txinputs=lists:reverse(TxInputs),
-										      txoutputs=lists:reverse(TxOutputs)} | Acc]).
+										      txoutputs=lists:reverse(TxOutputs)} | Acc],
+				[{TransactionHash, byte_size(Tbin), TXLength}|Offsets]).
 
 extract(<< >>) -> ok;
 extract(<<?MAGICBYTE:32/little, 
@@ -274,7 +275,7 @@ extract(<<?MAGICBYTE:32/little,
                 Nonce:32/little>>,
 	BlockHash = crypto:hash(sha256, crypto:hash(sha256, HashBin)),
    [TXCount, Tbin] = getVarInt(BinRest),
-   [Tdata, _Rest] = getTransactions(TXCount, Tbin),
+   [Tdata, Rest, TxOffsets] = getTransactions(TXCount, Tbin),
    {ok, #bbdef{network=?MAGICBYTE,
    		                 blockhash=BlockHash,
    		                 headerlength=HeaderLength,
@@ -285,8 +286,40 @@ extract(<<?MAGICBYTE:32/little,
    		                 difficulty=TargetDifficulty,
    		                 nonce=Nonce,
    		                 txcount=TXCount,
-						 txdata=lists:reverse(Tdata)}, _Rest};
+						 txdata=lists:reverse(Tdata)}, TxOffsets, Rest};
  extract(<<R:8, _Bin/binary>>) when R > 0 ->
 	io:format("Problem: ~w~n", [binary:bin_to_list(_Bin, {0, 10})]),
 	{scan, _Bin};
 extract(Data) -> {scan, Data}.
+
+
+extract_header(<<?MAGICBYTE:32/little, 
+    HeaderLength:32/little,
+    VersionNumber:32/little, 
+    PreviousHash:256/bitstring, 
+    MerkleRoot:256/bitstring, 
+    TimeStamp:32/little, 
+    TargetDifficulty:32/little, 
+    Nonce:32/little,
+    BinRest/binary>>) ->
+    % Repack subset to create Block Hash
+    HashBin = <<VersionNumber:32/little,
+                PreviousHash:256/bitstring,
+                MerkleRoot:256/bitstring,
+                TimeStamp:32/little,
+                TargetDifficulty:32/little,
+                Nonce:32/little>>,
+	BlockHash = crypto:hash(sha256, crypto:hash(sha256, HashBin)),
+   [TXCount, _Tbin] = getVarInt(BinRest),
+   {ok, #bbdef{network=?MAGICBYTE,
+   		                 blockhash=BlockHash,
+   		                 headerlength=HeaderLength,
+   		                 version=VersionNumber,
+   		                 previoushash=PreviousHash,
+   		                 merkleroot=MerkleRoot,
+   		                 timestamp=TimeStamp,
+   		                 difficulty=TargetDifficulty,
+   		                 nonce=Nonce,
+   		                 txcount=TXCount,
+               txdata=[]}}.
+

@@ -77,7 +77,9 @@
 -record(btxin, {txhash, txindex, script = <<>>, seqnum, signed=false}).
 -record(btxout, {txindex, value, script = <<>>, address="", info, color=?Uncolored, quantity=0}).
 
--record(blockorder, {order, hash}).
+%% Extended transaction information
+
+-record(btxdef_ext, {tx, info}).
 
 % Magic numbers
 -define(MAGICBYTE_LIVE, 16#D9B4BEF9).
