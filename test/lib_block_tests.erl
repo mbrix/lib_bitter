@@ -76,6 +76,34 @@ blockhash_to_binary() ->
     ?assertEqual(A, B),
     ?assertEqual(A, BinaryHash).
 
+offset_checking() ->
+    HexBlock = erlang:binary_to_list(lib_test:data("rawblock2.hex")),
+    RawBlock = hex:hexstr_to_bin(HexBlock),
+    {continue, B, _BlockOffset, Offsets, _} = lib_parse:parse_raw_block(RawBlock),
+    lists:foreach(fun(E) ->
+                {Tx, {Hash, Offset, Length}} = E,
+                ?assertEqual(Hash, Tx#btxdef.txhash),
+                ParsedTx = lib_parse:parse_tx(binary:part(RawBlock, {Offset, Length})),
+                ?assertEqual(Tx, ParsedTx)
+        end, lists:zip(B#bbdef.txdata, Offsets)).
+
+multiblock_offset_checking() ->
+    HexBlock = erlang:binary_to_list(lib_test:data("rawblock2.hex")),
+    RawBlock = hex:hexstr_to_bin(HexBlock),
+    RawChunk = iolist_to_binary([RawBlock, RawBlock, RawBlock, RawBlock]),
+    {continue, _, _, _, NextBlock2} = lib_parse:parse_raw_block(RawChunk),
+    {continue, _, _, _, NextBlock3} = NextBlock2(),
+    {continue, B, {BlockOffset, BlockLength}, Offsets, _} = NextBlock3(),
+    lists:foreach(fun(E) ->
+                {Tx, {Hash, Offset, Length}} = E,
+                ?assertEqual(Hash, Tx#btxdef.txhash),
+                ParsedTx = lib_parse:parse_tx(binary:part(RawChunk, {Offset, Length})),
+                ?assertEqual(Tx, ParsedTx)
+        end, lists:zip(B#bbdef.txdata, Offsets)),
+    {continue, B2, _, _, _} = lib_parse:parse_raw_block(binary:part(RawChunk, {BlockOffset, BlockLength})),
+    ?assertEqual(B, B2).
+
+
 block_test_() -> 
   {foreach,
   fun start/0,
@@ -85,6 +113,8 @@ block_test_() ->
 		{"More complicated", fun complicated_serialize/0},
 		{"Color Serialize / Deserialize", fun color/0},
 		{"Json Serialize", fun json_serialize/0},
-		{"Blockhash to binary", fun blockhash_to_binary/0}
+		{"Blockhash to binary", fun blockhash_to_binary/0},
+		{"Offset checking", fun offset_checking/0},
+		{"Multiple blocks", fun multiblock_offset_checking/0}
    ]
   }.

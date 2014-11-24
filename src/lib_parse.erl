@@ -34,6 +34,7 @@
 	     parse_tx/1,
 		 parse_script/1,
 	     getTransactions/2,
+	     getTransactions/3,
 	     extract/1,
 	     extract_header/1]).
 
@@ -46,7 +47,7 @@ parse_raw(Bin) ->
 
 parse(Fname) ->
 	case file:read_file(Fname) of
-		{ok, Data} -> extractLoop(Data);
+		{ok, Data} -> extractLoop(Data, 0);
 		{error, Reason} -> {stop, Reason, {Fname}}
 	end.
 
@@ -55,27 +56,33 @@ parse_block(Block) ->
 	B = erlang:iolist_to_binary([<<?MAGICBYTE:32/little, 
     						     Size:32/little>>,
 								 Block]),
-	extractLoop(B).
+	extractLoop(B, 0).
 
 parse_raw_block(Block) ->
-    extractLoop(Block).
+    extractLoop(Block, 0).
 
 parse_tx(TxData) ->
 	[[T], _, _] = getTransactions(1, TxData),
 	T.
 
-extractLoop(Data) ->
+extractLoop(Data, StartOffset) ->
 	case extract(Data) of
 		{ok, Block2, TxOffsets, Next} ->
-		    BlockSize = byte_size(Next) - byte_size(Data),
+		    BlockSize = byte_size(Data) - byte_size(Next),
+		    NewTxOffsets = adjust_offsets(TxOffsets, StartOffset),
             {continue, Block2,
-             {byte_size(Data), BlockSize}, TxOffsets,
-             fun() -> extractLoop(Next) end};
+             {StartOffset, BlockSize}, NewTxOffsets,
+             fun() -> extractLoop(Next, StartOffset+BlockSize) end};
 		{scan, Next} ->
 			<<_:8, Bin/binary>> = Next,
-			extractLoop(Bin);
+			extractLoop(Bin, StartOffset+1);
 		ok -> done
 	end.
+
+adjust_offsets(TxOffsets, Adjustment) ->
+    lists:map(fun(E) ->
+                {Hash, Offset, Length} = E,
+                {Hash, Offset+Adjustment, Length} end, TxOffsets).
 
 % Normalize the return into a finger count
 norm(?OP_0) -> 0;
@@ -236,9 +243,10 @@ getTxOutputs(OutputCount, Rest, Acc, Index) ->
 	   Address = lib_address:script_to_address(ScriptExtendedInfo, Script),
 	   getTxOutputs(OutputCount-1, Next, [#btxout{txindex=Index, value=Value, script=Script, address=Address, info=strip_info_result(ScriptExtendedInfo)}|Acc], Index+1).
 
-getTransactions(TXCount, Tbin) -> getTransactions(TXCount, Tbin, [], []).
-getTransactions(0, Tbin, Acc, Offsets) -> [Acc, Tbin, Offsets];
-getTransactions(TXCount, Tbin, Acc, Offsets) ->
+getTransactions(TXCount, Tbin) -> getTransactions(TXCount, Tbin, [], [], 0).
+getTransactions(TXCount, Tbin, StartOffset) -> getTransactions(TXCount, Tbin, [], [], StartOffset).
+getTransactions(0, Tbin, Acc, Offsets, _StartOffset) -> [Acc, Tbin, Offsets];
+getTransactions(TXCount, Tbin, Acc, Offsets, StartOffset) ->
 	<< TransactionVersion:32/little, Rest/binary >> = Tbin,
 	[InputCount, Inputs] = getVarInt(Rest),
 	[TxInputs, Rest2] = getTxInputs(InputCount, Inputs),
@@ -254,7 +262,8 @@ getTransactions(TXCount, Tbin, Acc, Offsets) ->
 										      txlocktime=TransactionLockTime,
 										      txinputs=lists:reverse(TxInputs),
 										      txoutputs=lists:reverse(TxOutputs)} | Acc],
-				[{TransactionHash, byte_size(Tbin), TXLength}|Offsets]).
+				[{TransactionHash, StartOffset, TXLength}|Offsets],
+				StartOffset + TXLength).
 
 extract(<< >>) -> ok;
 extract(<<?MAGICBYTE:32/little, 
@@ -275,7 +284,8 @@ extract(<<?MAGICBYTE:32/little,
                 Nonce:32/little>>,
 	BlockHash = crypto:hash(sha256, crypto:hash(sha256, HashBin)),
    [TXCount, Tbin] = getVarInt(BinRest),
-   [Tdata, Rest, TxOffsets] = getTransactions(TXCount, Tbin),
+    TxDataOffset = 88 + (byte_size(BinRest) - byte_size(Tbin)),
+   [Tdata, Rest, TxOffsets] = getTransactions(TXCount, Tbin, TxDataOffset),
    {ok, #bbdef{network=?MAGICBYTE,
    		                 blockhash=BlockHash,
    		                 headerlength=HeaderLength,
@@ -286,7 +296,8 @@ extract(<<?MAGICBYTE:32/little,
    		                 difficulty=TargetDifficulty,
    		                 nonce=Nonce,
    		                 txcount=TXCount,
-						 txdata=lists:reverse(Tdata)}, TxOffsets, Rest};
+						 txdata=lists:reverse(Tdata)},
+	lists:reverse(TxOffsets), Rest};
  extract(<<R:8, _Bin/binary>>) when R > 0 ->
 	io:format("Problem: ~w~n", [binary:bin_to_list(_Bin, {0, 10})]),
 	{scan, _Bin};
