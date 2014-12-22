@@ -252,12 +252,12 @@ script_to_address({p2pkh, Pubkey}, _) -> Pubkey;
 script_to_address({p2pkh2, Pubkey}, _) -> key_to_hash160(Pubkey);
 script_to_address({full_pubkey, Pubkey}, _) -> key_to_hash160(Pubkey);
 script_to_address({compressed_pubkey, Pubkey}, _) -> key_to_hash160(Pubkey);
-script_to_address({malformed, _}, _) -> malformed;
+script_to_address({malformed, _}, _) -> <<"malformed00000000000">>;
 script_to_address({p2sh, Hash}, _) -> Hash;
 script_to_address({multisig, {_, _}}, Script) -> script_to_hash160(Script);
-script_to_address({op_return, _}, _) -> op_return; 
-script_to_address({openassets, _}, _) -> openassets;
-script_to_address(_X, _) -> weird.
+script_to_address({op_return, _}, _) -> <<"op_return00000000000">>; 
+script_to_address({openassets, _}, _) -> <<"openassets000000000">>;
+script_to_address(_X, _) -> <<"weird000000000000000">>.
 
 
 info_addresses({p2pkh, Pubkey}, _) -> [Pubkey];

@@ -198,6 +198,8 @@ create_output(Txindex, Value, Address) when is_record(Address, addr) ->
 create_output(Txindex, Value, Address) ->
 	#btxout{txindex=Txindex,
 		    value=Value,
+		    color=?Uncolored,
+		    quantity=0,
 		    script = lib_tx:create_script(p2pkh, Address),
 		    address=Address}.
 
@@ -237,7 +239,8 @@ create_chain(Iterations, NumOutputs) ->
 	C = create_outputs(NumOutputs),
 	T = create_transaction([create_input()], C),
 	NewBlock = A#bbdef{previoushash = ?CHAIN_ROOT,
-	                   txdata=[T]},
+	                   txdata=[T],
+	                   e_height=1},
 	{Acc, _B} = lists:mapfoldl(fun(_, Prev) ->
 		A2 = create_block(),
 		[Tdata|_] = Prev#bbdef.txdata,
@@ -248,7 +251,8 @@ create_chain(Iterations, NumOutputs) ->
 		PrevDifficulty = Prev#bbdef.e_sumdiff,
 			N2 = A2#bbdef{txdata=[T2],
 						  previoushash=Prev#bbdef.blockhash,
-						  e_sumdiff=PrevDifficulty+100},
+						  e_sumdiff=PrevDifficulty+100,
+				          e_height=Prev#bbdef.e_height+1},
 			{N2, N2}
 		end, NewBlock, lists:seq(0, Iterations-1)),
 			[NewBlock|Acc].

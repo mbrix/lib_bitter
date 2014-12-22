@@ -41,6 +41,7 @@
 	     color_aggregate/1,
 	     colors/1,
 	     is_colored/1,
+	     check_colored/1,
 	     marker/1,
 	     meta/1,
 	     meta_url/1,
@@ -260,6 +261,24 @@ validate_quantity_list(QList) ->
 						[]
 				end
 		end, QList, QList).
+
+% This checks if the block or tx might be colored based on the presence
+% of the marker output.
+check_colored(Tx) when is_record(Tx, btxdef) -> has_marker(find_marker(Tx#btxdef.txoutputs));
+check_colored(Block) when is_record(Block, bbdef) ->
+    try
+        lists:foreach(fun(Tx) ->
+                    false = has_marker(find_marker(Tx#btxdef.txoutputs)) end,
+                      Block#bbdef.txdata),
+        false
+    catch
+        _:_ -> true
+    end.
+
+has_marker(?Uncolored) -> false;
+has_marker(_) -> true.
+
+
 
 find_marker(O) -> find_marker(O, []).
 find_marker([], _) -> ?Uncolored;

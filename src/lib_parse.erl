@@ -30,6 +30,7 @@
 -export([parse/1,
 	     parse_block/1,
 	     parse_raw_block/1,
+	     parse_raw_block/2,
 	     parse_raw/1,
 	     parse_tx/1,
 		 parse_script/1,
@@ -61,6 +62,9 @@ parse_block(Block) ->
 parse_raw_block(Block) ->
     extractLoop(Block, 0).
 
+parse_raw_block(Block, Offset) ->
+    extractLoop(Block, Offset).
+
 parse_tx(TxData) ->
 	[[T], _, _] = getTransactions(1, TxData),
 	T.
@@ -76,7 +80,9 @@ extractLoop(Data, StartOffset) ->
 		{scan, Next} ->
 			<<_:8, Bin/binary>> = Next,
 			extractLoop(Bin, StartOffset+1);
-		ok -> done
+		ok -> 
+		    erlang:garbage_collect(self()),
+		    done
 	end.
 
 adjust_offsets(TxOffsets, Adjustment) ->
@@ -226,9 +232,9 @@ getTxInputs(InputCount, Rest, Acc) ->
 	   [ScriptLength, TxRest] = getVarInt(BinRest),
 	   AdjustedScriptLength = ScriptLength*8,
 	   << Script:AdjustedScriptLength/bitstring, SeqNum:32/little, Next/binary >> = TxRest,
-	   getTxInputs(InputCount-1, Next, [#btxin{txhash=Txhash,
+	   getTxInputs(InputCount-1, Next, [#btxin{txhash=binary:copy(Txhash),
 	   			                               txindex=TxIndex,
-	   			                               script=Script,
+	   			                               script=binary:copy(Script),
 	   			                               seqnum=SeqNum}|Acc]).
 
 getTxOutputs(OutputCount, Rest) -> getTxOutputs(OutputCount, Rest, [], 0).
@@ -239,9 +245,10 @@ getTxOutputs(OutputCount, Rest, Acc, Index) ->
 	   [ScriptLength, TxRest] = getVarInt(BinRest),
 	   AdjustedScriptLength = ScriptLength*8,
 	   << Script:AdjustedScriptLength/bitstring, Next/binary >> = TxRest,
-	   ScriptExtendedInfo = parse_script(binary:copy(Script)),
-	   Address = lib_address:script_to_address(ScriptExtendedInfo, Script),
-	   getTxOutputs(OutputCount-1, Next, [#btxout{txindex=Index, value=Value, script=Script, address=Address, info=strip_info_result(ScriptExtendedInfo)}|Acc], Index+1).
+	S = binary:copy(Script),
+	   ScriptExtendedInfo = parse_script(S),
+	   Address = lib_address:script_to_address(ScriptExtendedInfo, S),
+	   getTxOutputs(OutputCount-1, Next, [#btxout{txindex=Index, value=Value, script=S, address=Address, info=strip_info_result(ScriptExtendedInfo)}|Acc], Index+1).
 
 getTransactions(TXCount, Tbin) -> getTransactions(TXCount, Tbin, [], [], 0).
 getTransactions(TXCount, Tbin, StartOffset) -> getTransactions(TXCount, Tbin, [], [], StartOffset).
@@ -290,8 +297,8 @@ extract(<<?MAGICBYTE:32/little,
    		                 blockhash=BlockHash,
    		                 headerlength=HeaderLength,
    		                 version=VersionNumber,
-   		                 previoushash=PreviousHash,
-   		                 merkleroot=MerkleRoot,
+   		                 previoushash=binary:copy(PreviousHash),
+   		                 merkleroot=binary:copy(MerkleRoot),
    		                 timestamp=TimeStamp,
    		                 difficulty=TargetDifficulty,
    		                 nonce=Nonce,

@@ -188,6 +188,7 @@ recolor_txdata(TxList, ColorBin) ->
     recolor_txdata(TxList, ColorBin, []).
 
 recolor_txdata([], _ColorBin, Acc) -> lists:reverse(Acc);
+recolor_txdata(TxList, <<>>, []) -> TxList;
 recolor_txdata(_TxList, <<>>, _Acc) ->
     throw(color_deserialize_error);
 recolor_txdata(TxList, ColorBin, Acc) ->
