@@ -52,7 +52,7 @@ complicated_serialize() ->
     {_, BlockRecord, _, _} = lib_parse:extract(RawBlock),
     BinBlock = lib_block:serialize(BlockRecord),
     %?debugFmt("~p~n~p~n", [RawBlock, BinBlock]),
-    ?assertEqual(hex:bin_reverse(RawBlock),hex:bin_reverse(BinBlock)).
+    ?assertEqual(RawBlock, BinBlock).
 
 color() ->
     B = lib_test:fake_block("color_tests1.bin"),
@@ -105,6 +105,11 @@ multiblock_offset_checking() ->
     {continue, B2, _, _, _} = lib_parse:parse_raw_block(binary:part(RawChunk, {BlockOffset, BlockLength})),
     ?assertEqual(B, B2).
 
+rawblock_parsing() ->
+    HexBlock = erlang:binary_to_list(lib_test:data("rawblock3.hex")),
+    RawBlock = hex:hexstr_to_bin(HexBlock),
+    {continue, _, _, _, _NextBlock} = lib_parse:parse_raw_block(RawBlock).
+
 
 block_test_() -> 
   {foreach,
@@ -117,6 +122,7 @@ block_test_() ->
 		{"Json Serialize", fun json_serialize/0},
 		{"Blockhash to binary", fun blockhash_to_binary/0},
 		{"Offset checking", fun offset_checking/0},
-		{"Multiple blocks", fun multiblock_offset_checking/0}
+		{"Multiple blocks", fun multiblock_offset_checking/0},
+		{"Rawblock parsing", fun rawblock_parsing/0}
    ]
   }.
