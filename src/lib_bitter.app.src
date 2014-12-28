@@ -1,7 +1,7 @@
 {application, lib_bitter,
  [
   {description, "Low level Bitcoin protocol support library"},
-  {vsn, "1"},
+  {vsn, "1.2"},
   {registered, []},
   {applications, [
                   kernel,
