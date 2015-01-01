@@ -28,6 +28,7 @@
 -author('mbranton@emberfinancial.com').
 
 -export([parse/1,
+         parse_file/1,
 	     parse_block/1,
 	     parse_raw_block/1,
 	     parse_raw_block/2,
@@ -51,6 +52,16 @@ parse(Fname) ->
 		{ok, Data} -> extractLoop(Data, 0);
 		{error, Reason} -> {stop, Reason, {Fname}}
 	end.
+
+%% For debugging, breaks file up into an array in ram.
+parse_file(Filename) ->
+    parse_file(parse(Filename), []).
+
+parse_file({continue, Block, BlockOffsets, TxOffsets, Fun}, Acc) ->
+    parse_file(Fun(), [{Block, BlockOffsets, TxOffsets}|Acc]);
+
+parse_file(done, Acc) -> Acc.
+
 
 parse_block(Block) ->
 	Size = size(Block),
