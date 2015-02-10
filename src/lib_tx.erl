@@ -55,12 +55,15 @@
 	     is_signed/1,
 	     clear_input_scripts/2,
 	     readable/1,
+	     readable/2,
 	     readable_txhash/1,
+	     readable_txhash/2,
 	     from_hex/1,
 	     vector/1,
 	     sigs/1,
 	     total/1,
-	     to_json/1]).
+	     to_json/1,
+	     to_map/1]).
 
 
 -include_lib("bitter.hrl").
@@ -245,8 +248,16 @@ is_signed(Tx) ->
 	not lists:any(fun(I) -> I#btxin.signed =/= true end,
 		Tx#btxdef.txinputs).
 
+readable_txhash(binary, TxHash) ->
+	iolist_to_binary(readable_txhash(TxHash)).
+
+readable_txhash(TxHash) when is_binary(TxHash) ->
+	hex:bin_to_hexstr(hex:bin_reverse(TxHash));
 readable_txhash(Tx) when is_record(Tx, btxdef) ->
     hex:bin_to_hexstr(hex:bin_reverse(Tx#btxdef.txhash)).
+
+readable(binary, Tx) when is_record(Tx, btxdef) ->
+	iolist_to_binary(readable(Tx)).
 
 readable(Tx) when is_record(Tx, btxdef) ->
 	hex:bin_to_hexstr(serialize_btxdef(Tx)).
@@ -550,14 +561,15 @@ add_outputs(O, Value) ->
     [H|T] = O,
     add_outputs(T, Value + H#btxout.value).
 
+to_json(Tx) -> jiffy:encode(to_map(Tx)).
 
-to_json(Tx) when is_binary(Tx) ->
+to_map(Tx) when is_binary(Tx) ->
     Tx2 = lib_parse:parse_tx(Tx),
     to_json(Tx2);
-to_json(Tx) when is_record(Tx, btxdef) ->
+to_map(Tx) when is_record(Tx, btxdef) ->
     Hexstr = iolist_to_binary(hex:bin_to_hexstr(serialize(Tx))),
     Txid = iolist_to_binary(hex:bin_to_hexstr(hex:bin_reverse(Tx#btxdef.txhash))),
-    jiffy:encode(#{
+    #{
             hex => Hexstr,
             txid => Txid,
             version => Tx#btxdef.txversion,
@@ -568,7 +580,7 @@ to_json(Tx) when is_record(Tx, btxdef) ->
             %% confirmations not stored outside of unspent pool
             %% time not stored outside of block
             %% blocktime now stored outside of block
-        }).
+    }.
 
 inputs_to_json(Txinputs) ->
     lists:foldl(fun(E, Acc) ->
@@ -593,7 +605,9 @@ outputs_to_json(Txoutputs) ->
     {_, O} = lists:foldl(fun(E, {Vcounter, Outputs}) ->
                 {Vcounter+1, [#{value => lib_transact:satoshi_to_btc(E#btxout.value),
                                 vout => Vcounter,
-                                scriptPubKey => scriptpubkey_to_json(E#btxout.script)}|Outputs]}
+                                scriptPubKey => scriptpubkey_to_json(E#btxout.script),
+                                color => color_to_json(E#btxout.color),
+                                quantity => E#btxout.quantity}|Outputs]}
             end, {0, []}, Txoutputs),
     O.
 
@@ -601,3 +615,6 @@ scriptpubkey_to_json(Script) ->
     Hexbin = iolist_to_binary(hex:bin_to_hexstr(Script)),
     #{hex => Hexbin,
       asm => <<"">>}.
+
+color_to_json(?Uncolored) -> <<"uncolored">>;
+color_to_json(C) when is_binary(C) -> lib_color:readable(binary, lib_color:new(C)).

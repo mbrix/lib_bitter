@@ -46,6 +46,7 @@
 	     meta/1,
 	     meta_url/1,
 	     readable/1,
+	     readable/2,
 	     readable_colors/1,
 	     readable_issue_colors/1,
 	     find_color/2,
@@ -55,6 +56,7 @@
 	     new/2,
 	     from_json/1,
 	     to_json/1,
+	     to_map/1,
 	     hash160/1,
 	     find_spend_color/2,
 	     new_spend_color/1,
@@ -139,19 +141,28 @@ from_json(Definition) ->
 		version = val(<<"version">>, D)}.
 
 to_json(Color) when is_record(Color, color) ->
-	jiffy:encode(#{<<"name">> => Color#color.name,
+	jiffy:encode(to_map(Color)).
+
+to_map(Color) when is_record(Color, color) ->
+	#{<<"name">> => Color#color.name,
 			       <<"asset_ids">> => source_list(Color),
-			       <<"contract_url">> => Color#color.contract_url,
-			       <<"name_short">> => Color#color.short_name,
-			       <<"issuer">> => Color#color.issuer,
-			       <<"description">> => Color#color.description,
-			<<"description_mime">> => Color#color.mime_type,
-			<<"type">> => Color#color.type,
+			       <<"contract_url">> => to_binary(Color#color.contract_url),
+			       <<"name_short">> => to_binary(Color#color.short_name),
+			       <<"issuer">> => to_binary(Color#color.issuer),
+			       <<"description">> => to_binary(Color#color.description),
+			<<"description_mime">> => to_binary(Color#color.mime_type),
+			<<"type">> => to_binary(Color#color.type),
 			<<"divisibility">> => Color#color.divisibility,
-			<<"link_to_website">> => Color#color.link_to_website,
-			<<"icon_url">> => Color#color.icon_url,
-			<<"image_url">> => Color#color.image_url,
-			<<"version">> => Color#color.version}).
+			<<"link_to_website">> => to_binary(Color#color.link_to_website),
+			<<"icon_url">> => to_binary(Color#color.icon_url),
+			<<"image_url">> => to_binary(Color#color.image_url),
+			<<"version">> => Color#color.version
+	 }.
+
+to_binary(A) when is_list(A) -> iolist_to_binary(A);
+to_binary(A) when is_atom(A) -> erlang:atom_to_binary(A, utf8);
+to_binary(A) when is_binary(A) -> A;
+to_binary(A) -> A.
 
 validate(Color) when is_record(Color, color) ->
     validate_field(asset_ids, Color#color.asset_ids),
@@ -196,6 +207,9 @@ from(O) when is_record(O, btxout) ->
 
 new() ->
 	#color{}.
+
+new(<<"uncolored">>) -> new(uncolored);
+new("uncolored") -> new(uncolored);
 
 new(uncolored) ->
     #color{name = "Uncolored",
@@ -453,6 +467,12 @@ hash160(Color) when is_binary(Color) ->
 hash160(Color) when is_record(Color, color) ->
 	Color#color.bin;
 hash160(Color) -> Color. % Catch all those atoms
+
+string_to_bin(S) when is_atom(S) -> S;
+string_to_bin(S) when is_list(S) -> erlang:list_to_binary(S);
+string_to_bin(S) -> S.
+
+readable(binary, Color) -> string_to_bin(readable(Color)).
 
 readable(?Uncolored) -> uncolored;
 readable(IssueColor) when is_atom(IssueColor) -> IssueColor;

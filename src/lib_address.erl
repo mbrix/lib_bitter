@@ -63,6 +63,7 @@
 	     hash160/1,
 	     script/1,
 	     readable/1,
+	     readable/2,
 	     issue_color/1]).
 
 -include_lib("bitter.hrl").
@@ -139,6 +140,13 @@ type(Addr) ->
 
 hash160(Addr) ->
 	Addr#addr.bin.
+
+string_to_bin(S) when is_atom(S) -> S;
+string_to_bin(S) when is_list(S) -> erlang:list_to_binary(S);
+string_to_bin(S) -> S.
+
+readable(binary, Addr) ->
+	string_to_bin(readable(Addr)).
 
 readable(Addr) when is_record(Addr, addr) ->
 	case Addr#addr.type of

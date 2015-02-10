@@ -46,11 +46,11 @@ confirmation_filter() ->
     Unspents = [lib_test:random_unspent(100),
                 lib_test:random_unspent(101),
                 lib_test:random_unspent(102)],
-    FilterA = lib_unspent:filter_by_confirmations(Unspents, 103, 0, 999999),
+    FilterA = lib_unspent:filter_by_confirmations(Unspents, 102, 0, 999999),
     ?assertEqual(Unspents, FilterA),
-    FilterB = lib_unspent:filter_by_confirmations(Unspents, 103, 2, 999999),
+    FilterB = lib_unspent:filter_by_confirmations(Unspents, 102, 2, 999999),
     ?assertEqual(2, length(FilterB)),
-    FilterC = lib_unspent:filter_by_confirmations(Unspents, 103, 0, 2),
+    FilterC = lib_unspent:filter_by_confirmations(Unspents, 102, 0, 2),
     ?assertEqual(2, length(FilterC)).
 
 block_test_() -> 

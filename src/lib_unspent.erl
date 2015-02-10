@@ -42,7 +42,7 @@ to_json(UnspentList, Height) when is_list(UnspentList) ->
                 TxHash = iolist_to_binary(hex:bin_to_hexstr(hex:bin_reverse(Hash))),
                 Address = iolist_to_binary(lib_address:readable(AddressRecord)),
                 ScriptPubKey = iolist_to_binary(hex:bin_to_hexstr(E#utxop.script)),
-                Color = lib_color:readable(E#utxop.color),
+                Color = to_readable(lib_color:readable(E#utxop.color)),
                 Confirmations = Height - E#utxop.height,
                 #{txid => TxHash,
                   vout => Index,
@@ -54,21 +54,31 @@ to_json(UnspentList, Height) when is_list(UnspentList) ->
                   quantity => E#utxop.quantity}
         end, UnspentList).
 
+to_readable(A) when is_atom(A) -> A;
+to_readable(A) when is_list(A) -> iolist_to_binary(A);
+to_readable(A) when is_binary(A) -> A.
 
 %% Filtering
 
 filter_by_confirmations(UnspentList, Height, MinConfirms, MaxConfirms) ->
+	%% Remap unconfirms to height+1
+	Remapped = lists:map(fun(E) when E#utxop.height =:= -1 ->
+								 E#utxop{height = Height+1};
+							(E) -> E
+						 end, UnspentList),
     lists:filter(fun(E) ->
-                MinH = Height - MinConfirms,
-                MaxH = Height - MaxConfirms,
+                MinH = (Height+1) - MinConfirms,
+                MaxH = (Height+1) - MaxConfirms,
                 (E#utxop.height =< MinH) and (E#utxop.height >= MaxH)
-        end, UnspentList).
+        end, Remapped).
 
+filter_by_value(UnspentList, any) -> UnspentList;
 filter_by_value(UnspentList, Value) ->
     lists:filter(fun(E) ->
                 E#utxop.value >= Value
         end, UnspentList).
 
+filter_by_color(UnspentList, any) -> UnspentList;
 filter_by_color(UnspentList, Color) ->
     C = lib_color:new(Color),
     ColorBin = lib_color:hash160(C),

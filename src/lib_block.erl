@@ -30,7 +30,10 @@
 
 -export([header/1,
          to_json/1,
+         to_map/1,
          blockhash/1,
+         readable_hash/1,
+         readable_hash/2,
          hashes/1,
          print/1,
          serialize/1,
@@ -45,6 +48,15 @@
 -define(UNCOLORED, 0).
 -define(ATOM,      1).
 -define(BINARY,    2).
+
+
+readable_hash(binary, Hash) ->
+	iolist_to_binary(readable_hash(Hash)).
+
+readable_hash(Hash) when is_binary(Hash) ->
+	hex:bin_to_hexstr(hex:bin_reverse(Hash));
+readable_hash(Block) when is_record(Block, bbdef) ->
+    hex:bin_to_hexstr(hex:bin_reverse(Block#bbdef.blockhash)).
 
 header(Block) when is_record(Block, bbdef) ->
 	#bbdef{network=Block#bbdef.network,
@@ -63,10 +75,13 @@ header(Block) when is_record(Block, bbdef) ->
 		   txdata=[]}.
 
 to_json(Block) when is_record(Block, bbdef) ->
+	jiffy:encode(to_map(Block)).
+
+to_map(Block) when is_record(Block, bbdef) ->
     BlockHash = hex:bin_to_hexstr(hex:bin_reverse(Block#bbdef.blockhash)),
     MerkleRoot = hex:bin_to_hexstr(hex:bin_reverse(Block#bbdef.merkleroot)),
     PreviousHash = hex:bin_to_hexstr(hex:bin_reverse(Block#bbdef.previoushash)),
-    jiffy:encode(#{
+    #{
             hash => iolist_to_binary(BlockHash),
             version => Block#bbdef.version,
             merkleroot => iolist_to_binary(MerkleRoot),
@@ -77,7 +92,7 @@ to_json(Block) when is_record(Block, bbdef) ->
             %% Chainwork would have to query chaind
             previousblockhash => iolist_to_binary(PreviousHash) 
             %% nextblockhash would have to query chaind
-            }).
+    }.
 
 txhashes(TxData) -> txhashes(TxData, []).
 txhashes([], Acc) -> lists:reverse(Acc);
