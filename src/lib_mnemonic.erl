@@ -31,7 +31,8 @@
 -export([generate/1,
 		 validate/1,
 		 seed/1,
-		 seed/2]).
+		 seed/2,
+		 load_index/1]).
 
 %% Generate a Mnemonic word list based on desired size
 generate(128) -> generate_mnemonic(128);
@@ -54,7 +55,7 @@ checksum(Bits) ->
 words(Bits) -> split_words(Bits, load_index(english), []).
 split_words(<<>>, _WordList, MnemonicList) -> lists:reverse(MnemonicList);
 split_words(<<WordIndex:11, Rest/bitstring>>, WordList, MnemonicList) ->
-	split_words(Rest, WordList, [lookup_word(WordIndex, WordList)|MnemonicList]).
+	split_words(Rest, WordList, [lookup_word(WordIndex+1, WordList)|MnemonicList]).
 
 %% Convert word list to seed
 
@@ -73,9 +74,9 @@ validate(Words, WordList) ->
 	Bin = lists:foldl(fun(W, Acc) ->
 					  {Index, _Word} = lists:keyfind(W, 2, WordList),
 					  case Acc of
-					  	  first -> <<Index:11>>;
+					  	  first -> <<(Index-1):11>>;
 					  	  Other -> 
-					  	  	  <<Other/bitstring, Index:11>>
+					  	  	  <<Other/bitstring, (Index-1):11>>
 					  end
 					  end, first, Words),
 	verify_checksum(Bin).
