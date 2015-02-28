@@ -27,7 +27,9 @@
 -module(lib_config).
 -author('mbranton@emberfinancial.com').
 
--export([load_config/1, load_config/2, save_config/2]).
+-export([load_config/1,
+		 load_config/2,
+		 save_config/2]).
 
 %% Shared Configuration functions
 %% Serialize save and load
@@ -49,9 +51,3 @@ save_config(Filename, State) ->
 	catch
 		_:_ -> error
 	end.
-
-
-
-
-
-

@@ -146,6 +146,11 @@
 % Block Sequence / Concurrent slow consumers
 -record(bitter_seq, {num, direction, blockhash}).
 
+% HD key format
+
+-record(bip32_priv_key, {key, chain_code, depth, child_num, finger_print, network}).
+-record(bip32_pub_key, {key, chain_code, depth, child_num, finger_print, network}).
+
 % Script OP Codes
 % push values
 -define(OP_0, 16#00). %0
