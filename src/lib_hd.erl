@@ -37,12 +37,18 @@
 		 readable/1,
 		 priv/1,
 		 pub/1,
-		 derive/3]).
+		 derive/3,
+		 serialize/1]).
 
-new(<<"xpriv", _/binary>> = _Base64PrivateKey) ->
-	ok;
-new(<<"xpub", _/binary>> = _Base64PrivateKey) ->
-	ok;
+new(<<"xprv", _/binary>> = Base64Xpriv) ->
+	<<16#0488ADE4:32, Depth:8, Fprint:32/bitstring, Cnum:32,
+	  Chain:256/bitstring, 0:8, Key:256/bitstring, _Csum:32/bitstring>> = base58:base58_to_binary(binary_to_list(Base64Xpriv)),
+	{bip32_priv_key, Key, Chain, Depth, Cnum, Fprint, mainnet};
+
+new(<<"xpub", _/binary>> = Base64Xpub) ->
+	<<16#0488B21E:32, Depth:8, Fprint:32/bitstring, Cnum:32,
+	  Chain:256/bitstring, Key:264/bitstring, _Csum:32/bitstring>> = base58:base58_to_binary(binary_to_list(Base64Xpub)),
+	{bip32_pub_key, Key, Chain, Depth, Cnum, Fprint, mainnet};
 
 new(<<Seed:128/bitstring>>) -> new(seed, Seed);
 new(<<Seed:256/bitstring>>) -> new(seed, Seed);

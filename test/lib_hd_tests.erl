@@ -127,6 +127,16 @@ error_derivation() ->
 	PubM = lib_hd:pub(lib_hd:derive(path, M, <<"m/0'/1/2'">>)),
 	?assertThrow(public_key_derivation_error, lib_hd:derive(path, PubM, <<"m/100'">>)).
 
+serialize() ->
+	Master = hex:hexstr_to_bin("000102030405060708090a0b0c0d0e0f"),
+	M = lib_hd:new(Master),
+	Key = <<"xprv9s21ZrQH143K3QTDL4LXw2F7HEK3wJUD2nW2nRk4stbPy6cq3jPPqjiChkVvvNKmPGJxWUtg6LnF5kejMRNNU3TGtRBeJgk33yuGBxrMPHi">>,
+	M = lib_hd:new(Key),
+	?assertEqual(iolist_to_binary(lib_hd:readable(M)), Key),
+	PubKey = <<"xpub661MyMwAqRbcFtXgS5sYJABqqG9YLmC4Q1Rdap9gSE8NqtwybGhePY2gZ29ESFjqJoCu1Rupje8YtGqsefD265TMg7usUDFdp6W1EGMcet8">>,
+	?assertEqual(lib_hd:readable(lib_hd:pub(M)), binary_to_list(PubKey)),
+	PubM = lib_hd:new(PubKey),
+	?assertEqual(lib_hd:pub(M), PubM).
 
 
 
@@ -140,6 +150,7 @@ hd_test_() ->
 		{"bip32 test vectors 1", fun bip32_vectors1/0},
 		{"bip32 test vectors 2", fun bip32_vectors2/0},
 		{"public path derivation", fun public_derivation/0},
-		{"error derivations", fun error_derivation/0}
+		{"error derivations", fun error_derivation/0},
+		{"serialization", fun serialize/0}
    ]
   }.
