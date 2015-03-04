@@ -35,8 +35,10 @@
 -export([new/1,
 		 new/2,
 		 readable/1,
-		 priv/1,
+		 priv/1, %% Derives Key Object
 		 pub/1,
+		 private/1, %% Derives just Key
+		 public/1,
 		 derive/3,
 		 serialize/1]).
 
@@ -117,6 +119,13 @@ pub(K) when is_record(K, bip32_priv_key) ->
 
 pub(K) when is_record(K, bip32_pub_key) -> K.
 
+public(#bip32_priv_key{key = Key}) ->
+	{ok, Pubkey} = libsecp256k1:ec_pubkey_create(Key, compressed),
+	Pubkey;
+public(#bip32_pub_key{key = Key}) -> Key.
+
+private(#bip32_priv_key{key = Key}) -> Key;
+private(#bip32_pub_key{}) -> error.
 
 derive(path, Key, <<"m/", Path/binary>>) ->
 	derive_pathlist(Key, 

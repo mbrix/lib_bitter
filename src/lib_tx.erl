@@ -84,7 +84,10 @@ decode_script(p2pkh, Script) when is_binary(Script) ->
 %	ok.
 
 verify_signature(Hash, Signature, PublicKey) ->
-	crypto:verify(ecdsa, sha256, {digest, Hash}, Signature, [PublicKey, secp256k1]).
+	case libsecp256k1:ecdsa_verify(Hash, Signature, PublicKey) of
+		ok -> true;
+		_ -> false
+	end.
 	
 % Tx Misc operations
 
@@ -268,12 +271,9 @@ from_hex(Hexstr) when is_list(Hexstr) ->
 	[Tx|_] = T,
 	Tx.
 
-create_signature(Hash, PublicKey, PrivateKey) ->
-    PrivKey =  {'ECPrivateKey',1,
-    			binary:bin_to_list(PrivateKey),
-                {namedCurve,{1,3,132,0,10}},
-                {0, PublicKey}},
-	public_key:sign({digest, Hash}, sha256, PrivKey).
+create_signature(Hash, _PublicKey, PrivateKey) ->
+	{ok, Signature} = libsecp256k1:ecdsa_sign(Hash, PrivateKey, default, <<>>),
+	Signature.
 
 create_p2sh_scriptsig(SigHashType, Signature) ->
 	SigLength = size(Signature),

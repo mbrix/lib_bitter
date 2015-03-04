@@ -113,7 +113,9 @@
 -record(utxo_state, {last_seen=undefined, height=0, last_block}).
 
 % Keyserver (KSM) records
--record(keystorage, {address, public_key, private_key}).
+%%-record(keystorage, {address, public_key, private_key}).
+-define(KEYSTORAGE_VERSION, 1).
+-record(keystorage, {id, version, key}).
 
 % Address records for P2SH and other address construction
 
@@ -145,6 +147,9 @@
 
 % Block Sequence / Concurrent slow consumers
 -record(bitter_seq, {num, direction, blockhash}).
+
+% Regular key formats
+-record(p2pkh, {private}).
 
 % HD key format
 

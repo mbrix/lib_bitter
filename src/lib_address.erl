@@ -50,7 +50,9 @@
 	     openassets/1,
 	     checksum/1,
 	     checksum/2,
-	     base58_check/2]).
+	     base58_check/2,
+	     private/1,
+	     public/1]).
 
 -export([new/1,
          new/2,
@@ -297,8 +299,11 @@ key_to_hash160(Pubkey) ->
 	crypto:hash(ripemd160, crypto:hash(sha256, Pubkey)).
 
 generate_keypair() ->
-	{UncompressedPublic, Private} = crypto:generate_key(ecdh, secp256k1),
-	{UncompressedPublic, Private}.
+	Private = crypto:strong_rand_bytes(32),
+	case libsecp256k1:ec_pubkey_create(Private, compressed) of
+		{ok, CompressedPublic} -> {CompressedPublic, Private};
+		error -> generate_keypair() %% If points are invalid
+	end.
 
 tx_to_hexstr(Txhash) ->
 	hex:bin_to_hexstr(hex:bin_reverse(Txhash)).
@@ -372,12 +377,28 @@ generate_p2sh_address(p2sh_2of3) ->
 		  {K2public, K2private},
 		  {K3public, K3private}]}.
 
+verify_keypair(Public, Key) when is_record(Key, bip32_priv_key) ->
+	verify_keypair(Public, private(Key));
+verify_keypair(Public, Key) when is_record(Key, bip32_pub_key) ->
+	Public =:= public(Key);
 verify_keypair(Public, Private) ->
 	Msg = crypto:rand_bytes(32),
 	try
-		Signature = crypto:sign(ecdsa, sha256, Msg, [Private, secp256k1]),
-		crypto:verify(ecdsa, sha256, Msg, Signature, [Public, secp256k1])
+		{ok, Signature} = libsecp256k1:ecdsa_sign(Msg, Private, default, <<>>),
+		ok = libsecp256k1:ecdsa_verify(Msg, Signature, Public),
+		true
 	catch
 		_:_ ->
 			false
 	end.
+
+
+private(#p2pkh{private = Private}) -> Private;
+private(Key) -> lib_hd:private(Key).
+
+public(#p2pkh{private = Private}) ->
+	{ok, Pubkey} = libsecp256k1:ec_pubkey_create(Private, compressed),
+	Pubkey;
+public(Key) -> lib_hd:public(Key).
+
+
