@@ -107,6 +107,11 @@ new(p2sh, Bin) when is_binary(Bin) ->
 	#addr{type = p2sh,
 		  bin  = Bin};
 
+new(key, KeyList) when is_list(KeyList) ->
+	RedeemScript = p2sh_redeemscript(KeyList),
+	#addr{type = p2sh,
+		  bin = script_to_hash160(RedeemScript)};
+
 new(key, PublicKey) ->
 	#addr{ type = p2pkh,
 		   bin  = key_to_hash160(compress_key(PublicKey))}.
@@ -120,6 +125,7 @@ new(key, PublicKey, PublicKey2, PublicKey3) ->
 	RedeemScript = p2sh_redeemscript([PublicKey, PublicKey2, PublicKey3]),
 	#addr{type = p2sh,
 		  bin = script_to_hash160(RedeemScript)}.
+
 
 % Does the Public key hash to this address
 equal(Address, Address2) when is_record(Address, addr), is_record(Address2, addr) ->
@@ -351,6 +357,10 @@ public_to_hash160(Public) ->
 p2sh_redeemscript_hash(PublicKeyList) ->
 	script_to_hash160(p2sh_redeemscript(PublicKeyList)).
 
+p2sh_redeemscript([Pubkey1]) ->
+	CPubkey1 = compress_key(Pubkey1),
+	<<?OP_1:8, 33:8, CPubkey1:264/bitstring, ?OP_1:8, ?OP_CHECKMULTISIG:8>>;
+
 p2sh_redeemscript([Pubkey1, Pubkey2]) ->
 	CPubkey1 = compress_key(Pubkey1),
 	CPubkey2 = compress_key(Pubkey2),
@@ -381,6 +391,8 @@ verify_keypair(Public, Key) when is_record(Key, bip32_priv_key) ->
 	verify_keypair(Public, private(Key));
 verify_keypair(Public, Key) when is_record(Key, bip32_pub_key) ->
 	Public =:= public(Key);
+verify_keypair(Public, Key) when is_record(Key, bip45_key) ->
+	Public =:= public(Key);
 verify_keypair(Public, Private) ->
 	Msg = crypto:rand_bytes(32),
 	try
@@ -399,6 +411,7 @@ private(Key) -> lib_hd:private(Key).
 public(#p2pkh{private = Private}) ->
 	{ok, Pubkey} = libsecp256k1:ec_pubkey_create(Private, compressed),
 	Pubkey;
-public(Key) -> lib_hd:public(Key).
-
+public(Key) when is_record(Key, bip45_key) -> lib_hdpm:public(Key);
+public(Key) when is_record(Key, bip32_priv_key) -> lib_hd:public(Key);
+public(Key) when is_record(Key, bip32_pub_key) -> lib_hd:public(Key).
 

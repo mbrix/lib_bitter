@@ -156,6 +156,8 @@
 -record(bip32_priv_key, {key, chain_code, depth, child_num, finger_print, network}).
 -record(bip32_pub_key, {key, chain_code, depth, child_num, finger_print, network}).
 
+-record(bip45_key, {private, cosigner_keys, locked}).
+
 % Script OP Codes
 % push values
 -define(OP_0, 16#00). %0

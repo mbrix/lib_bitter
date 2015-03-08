@@ -40,7 +40,8 @@
 		 private/1, %% Derives just Key
 		 public/1,
 		 derive/3,
-		 serialize/1]).
+		 serialize/1,
+		 bip32_path/3]).
 
 new(<<"xprv", _/binary>> = Base64Xpriv) ->
 	<<16#0488ADE4:32, Depth:8, Fprint:32/bitstring, Cnum:32,
@@ -54,7 +55,8 @@ new(<<"xpub", _/binary>> = Base64Xpub) ->
 
 new(<<Seed:128/bitstring>>) -> new(seed, Seed);
 new(<<Seed:256/bitstring>>) -> new(seed, Seed);
-new(<<Seed:512/bitstring>>) -> new(seed, Seed).
+new(<<Seed:512/bitstring>>) -> new(seed, Seed);
+new(_) -> error.
 
 new(mnemonic, <<Mnemonic:512/bitstring>>) -> new(binary, private, Mnemonic);
 
@@ -172,6 +174,13 @@ derive_key(K, I) when is_record(K, bip32_pub_key), I > 2147483647 ->  %% Hardene
 
 
 
+bip32_path(Change, AccountNum, AddressIndex) ->
+	erlang:iolist_to_binary([<<"m/44'/0'/">>,
+							 erlang:integer_to_binary(AccountNum),
+							 <<"'/">>,
+							 erlang:integer_to_binary(Change),
+							 <<"/">>,
+							 erlang:integer_to_binary(AddressIndex)]).
 
 
 
