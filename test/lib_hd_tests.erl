@@ -38,6 +38,13 @@ start() ->
 stop(_) ->
 	ok.
 
+create() ->
+	A = lib_hd:new(<<"xprv9s21ZrQH143K3QTDL4LXw2F7HEK3wJUD2nW2nRk4stbPy6cq3jPPqjiChkVvvNKmPGJxWUtg6LnF5kejMRNNU3TGtRBeJgk33yuGBxrMPHi">>),
+	?assertNotEqual(error, A),
+	B = lib_hd:new(<<"xpub661MyMwAqRbcFtXgS5sYJABqqG9YLmC4Q1Rdap9gSE8NqtwybGhePY2gZ29ESFjqJoCu1Rupje8YtGqsefD265TMg7usUDFdp6W1EGMcet8">>),
+	?assertNotEqual(error, B).
+
+
 hmac512() ->
 	%% RFC 4231
 	Key = hex:hexstr_to_bin("0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b"),
@@ -145,6 +152,7 @@ hd_test_() ->
   fun start/0,
   fun stop/1,
    [
+   	    {"Creation", fun create/0},
    	    {"Hmac512", fun hmac512/0},
 		{"Generate master key", fun gen_master/0},
 		{"bip32 test vectors 1", fun bip32_vectors1/0},

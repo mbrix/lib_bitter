@@ -48,6 +48,7 @@
 	     script_to_hash160/1,
 	     verify_keypair/2,
 	     openassets/1,
+	     openassets/2,
 	     checksum/1,
 	     checksum/2,
 	     base58_check/2,
@@ -96,8 +97,17 @@ new(Address) when is_list(Address) ->
         _:_ -> throw(address_error)
     end;
 
+new(Output) when is_record(Output, btxout) ->
+	new(Output#btxout.script);
+
+new(Unspent) when is_record(Unspent, utxop) ->
+	new(Unspent#utxop.script);
+
 new(Address) when is_record(Address, addr) ->
 	Address.
+
+new(binstr, Address) ->
+	new(erlang:binary_to_list(Address));
 
 new(p2pkh, Bin) when is_binary(Bin) ->
 	#addr{type = p2pkh,
@@ -171,6 +181,9 @@ readable(Addr) when is_list(Addr) ->
 readable(Unspent) when is_record(Unspent, utxop) ->
     A = new(Unspent#utxop.script),
     readable(A).
+
+openassets(binary, Addr) ->
+	string_to_bin(openassets(Addr)).
 
 openassets(Addr) when is_record(Addr, addr) ->
     case Addr#addr.type of

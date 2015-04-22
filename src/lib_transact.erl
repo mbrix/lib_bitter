@@ -195,7 +195,6 @@ pay(Payment, Unspents, Payee, sorted) when is_list(Payee) ->
 
 
 add_payee(Payment, Unspents, Payee, Overflow) ->
-
 	{RemainingUnspents, Selected, Remainder, Output} =
 		make_outputs(Unspents, Payee, Payment, Overflow),
 	{RemainingUnspents, Payment#payment{outputs=[Output|Payment#payment.outputs],

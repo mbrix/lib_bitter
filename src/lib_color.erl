@@ -531,7 +531,8 @@ readable_issue_colors(Unspents) ->
                     case E#utxop.color of
                         ?Uncolored ->
                             dict:store(readable(unspent_to_ic(E)),
-                                      lib_address:readable(E), Acc);
+                                      [lib_address:openassets(E),
+                                       lib_address:readable(E)], Acc);
                         _ -> Acc
                     end end, dict:new(), Unspents)).
 
