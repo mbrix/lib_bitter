@@ -71,6 +71,9 @@
 
 % TX Verification
 
+decode_script(p2pkh, <<>>) ->
+	empty_script;
+
 decode_script(p2pkh, Script) when is_binary(Script) ->
 	<<Length:8/little, Rest/binary>> = Script,
 	LengthBits = Length*8,
@@ -117,19 +120,23 @@ sign_inputs(SigHashType, Inputs, Tx, KeypairDict, Proposals, Unspents) ->
 	lists:map(fun(I) ->
 		{ok, Unspent} = dict:find({I#btxin.txhash, I#btxin.txindex}, Unspents),
 		{InputType, Hash160} = unspent_type(Unspent),
-		case I#btxin.script of
-			<<>> ->
-				sign_input(InputType, SigHashType, Tx, Hash160, I, KeypairDict, Proposals, Unspent#utxop.script);
+		case input_type(I) of
+			{unrecognized, _} ->
+				verify_input(InputType, SigHashType, Tx, Hash160, I, KeypairDict, Proposals, Unspent#utxop.script);
 			_ ->
-				verify_input(InputType, SigHashType, Tx, Hash160, I, KeypairDict, Proposals, Unspent#utxop.script)
+				sign_input(InputType, SigHashType, Tx, Hash160, I, KeypairDict, Proposals, Unspent#utxop.script)
 			end
 		end, Inputs).
 
 
 verify_input(p2pkh, SigHashType, Tx, _Key, Input, _KeypairDict, _, Script) ->
 	Hash = hash_tx(intermediate_tx(SigHashType, clear_input_scripts(replace_input_script(Tx, Input, Script), Input))),
-	{Signature, PublicKey} = decode_script(p2pkh, Input#btxin.script),
-	Input#btxin{signed = verify_signature(Hash, Signature, PublicKey)};
+	case decode_script(p2pkh, Input#btxin.script) of
+		{Signature, PublicKey} ->
+			Input#btxin{signed = verify_signature(Hash, Signature, PublicKey)};
+		empty_script ->
+			Input#btxin{signed = false}
+	end;
 
 verify_input(p2sh, SigHashType, Tx, Key, Input, KeypairDict, Proposals, Script) ->
 	{{Info, RedeemScript}, Sigs} = sigs(Input#btxin.script),
@@ -265,7 +272,7 @@ readable(binary, Tx) when is_record(Tx, btxdef) ->
 readable(Tx) when is_record(Tx, btxdef) ->
 	hex:bin_to_hexstr(serialize_btxdef(Tx)).
 
-from_hex(Hexstr) when is_list(Hexstr) ->
+from_hex(Hexstr) ->
 	RawTX = hex:hexstr_to_bin(Hexstr),
 	[T|_] = lib_parse:getTransactions(1, RawTX),
 	[Tx|_] = T,
@@ -341,7 +348,8 @@ create_input(U) when is_record(U, utxop) ->
 	SeqNum = 4294967295, % 0xFFFFFFFF
 	#btxin{txhash = Hash,
 		   txindex = Index,
-	   	   script = <<>>,
+	   	   %script = <<>>,
+	   	   script = U#utxop.script,
 		   seqnum = SeqNum};
 
 create_input(I) when is_record(I, btxin) ->
@@ -618,3 +626,6 @@ scriptpubkey_to_json(Script) ->
 
 color_to_json(?Uncolored) -> <<"uncolored">>;
 color_to_json(C) when is_binary(C) -> lib_color:readable(binary, lib_color:new(C)).
+
+
+
