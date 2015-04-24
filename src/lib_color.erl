@@ -56,6 +56,7 @@
 	     new/2,
 	     from_json/1,
 	     to_json/1,
+	     to_cprism/1,
 	     to_map/1,
 	     hash160/1,
 	     find_spend_color/2,
@@ -159,6 +160,27 @@ to_map(Color) when is_record(Color, color) ->
 			<<"version">> => Color#color.version
 	 }.
 
+to_cprism(Color) when is_record(Color, color) ->
+	jiffy:encode(to_cprism_map(Color)).
+
+to_cprism_map(Color) when is_record(Color, color) ->
+	#{<<"asset_id">> => erlang:list_to_binary(readable(Color)),
+	  <<"metadata_url">> => to_binary(Color#color.contract_url),
+	  <<"final_metadata_url">> => to_binary(Color#color.contract_url),
+	  <<"verified_issuer">> => false,
+	  <<"name">> => Color#color.name,
+	  <<"contract_url">> => to_binary(Color#color.contract_url),
+	  <<"name_short">> => to_binary(Color#color.short_name),
+	  <<"issuer">> => <<"null">>,
+	  <<"description">> => to_binary(Color#color.description),
+	  <<"description_mime">> => to_binary(Color#color.mime_type),
+	  <<"type">> => to_binary(Color#color.type),
+	  <<"divisibility">> => Color#color.divisibility,
+	  <<"icon_url">> => to_binary(Color#color.icon_url),
+	  <<"image_url">> => to_binary(Color#color.image_url)
+	 }.
+
+
 to_binary(A) when is_list(A) -> iolist_to_binary(A);
 to_binary(A) when is_atom(A) -> erlang:atom_to_binary(A, utf8);
 to_binary(A) when is_binary(A) -> A;
@@ -235,6 +257,10 @@ new(ColorBin) when is_binary(ColorBin) ->
 %new(I) when is_record(I, btxin) ->
 %    #color{name = unknown,
 %           bin = input_to_ic(I)}.
+
+new(binary, ColorName) ->
+	#color{name = unknown,
+		   bin = hash160(ColorName)};
 
 new(Name, U) when is_record(U, utxop) ->
 	IC = unspent_to_ic(U),
