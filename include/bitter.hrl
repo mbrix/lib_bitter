@@ -26,7 +26,7 @@
 -author('mbranton@emberfinancial.com').
 % Block Record Formats
 -define(COINBASE, <<0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0>>).
--define(DUSTLIMIT, 546).
+-define(DUSTLIMIT, 600). %% 546
 -define(DEFAULTFEE, 10000).
 -define(FEE_PER_K, 1000).
 -define(SIGHASH_NONE, 0).
@@ -138,7 +138,7 @@
                   issuances=0, fee=0, metaurl=undefined}).
 
 % txpool for tracking transactions submitted to the network
--record(txpool, {txhash, timestamp, tx}).
+-record(txpool, {txhash, timestamp, tx, status}).
 
 % Inventory Vector Types
 -define(INV_ERROR, <<0:32/little>>).
@@ -157,6 +157,10 @@
 -record(bip32_pub_key, {key, chain_code, depth, child_num, finger_print, network}).
 
 -record(bip45_key, {private, cosigner_keys, locked}).
+
+
+% Network specific structures
+-record(rejectmsg, {msg, ccode, reason, extra}).
 
 % Script OP Codes
 % push values
