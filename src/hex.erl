@@ -33,6 +33,9 @@ bin_to_hexstr(Bin) ->
   lists:flatten([io_lib:format("~2.16.0b", [X]) ||
     X <- binary_to_list(Bin)]).
 
+hexstr_to_bin(S) when is_binary(S) ->
+	hexstr_to_bin(erlang:binary_to_list(S));
+
 hexstr_to_bin(S) ->
   hexstr_to_bin(S, []).
 hexstr_to_bin([], Acc) ->
