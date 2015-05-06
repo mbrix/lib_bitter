@@ -58,7 +58,8 @@
 	     spent/2,
 	     included/2,
 	     fee/1,
-	     metaurl/2]).
+	     metaurl/2,
+	     partial_finish/3]).
 
 -include_lib("bitter.hrl").
 -include_lib("eunit/include/eunit.hrl").
@@ -212,6 +213,14 @@ acquire_only(Payment, Unspents, Payee) ->
 		    r_value = Remainder,
 			change = Payee#payee.change}}.
 
+
+%% Finish the color
+%% For use by partial payments
+partial_finish(Payment, Unspents, Change) when is_record(Payment, payment) ->
+	P2 = finish_color(Payment, Unspents), 
+	{Remaining, P3} = add_change(P2, Unspents, Change),
+	{ok, P3, Remaining}.
+
 % Finish and validate a payments object
 % Returns a TX ready for signing
 finalize(Payment, Unspents, Change) when is_record(Payment, payment) ->
@@ -328,12 +337,13 @@ add_change(P, Unspents, Change) when is_record(P, payment),
 	BTCoutputs = value(?Uncolored, P#payment.outputs),
 	BTCneeded = BTCoutputs + P#payment.fee,
 	if BTCinputs =:= BTCneeded ->
-			{Unspents, P};
+			{Unspents, P#payment{r_value=0}};
 	   BTCinputs > BTCneeded ->
 			% Need to return some of this to Change
 			Diff = BTCinputs - BTCneeded,
             %?debugFmt("Spent greater than needed: ~p~n", [Diff]),
-			{Unspents, P#payment{outputs = create_change_output(Change, Diff, P#payment.outputs)}};
+			{Unspents, P#payment{outputs = create_change_output(Change, Diff, P#payment.outputs),
+								 r_value = 0}};
 	   BTCinputs < BTCneeded ->
 	   		Diff = BTCneeded - BTCinputs,
             %?debugFmt("Spent less than needed: ~p~n", [Diff]),

@@ -137,6 +137,12 @@ color_identifier() ->
     ColorAddress = "ALn3aK1fSuG27N96UGYB1kUYUpGKRhBuBC",
     ?assertEqual(true, lib_address:checksum(23, ColorAddress)). 
 
+is_openassets() ->
+    ColorAddress = "akB4NBW9UuCmHuepksob6yfZs6naHtRCPNy",
+    ?assertEqual(true,  lib_address:is_openassets(ColorAddress)),
+    ?assertEqual(false, lib_address:is_openassets("blah")),
+    ?assertEqual(false, lib_address:is_openassets("16UwLL9Risc3QfPqBUvKofHmBQ7wMtjvM")).
+
 address_test_() -> 
   {foreach,
   fun start/0,
@@ -156,7 +162,8 @@ address_test_() ->
 		    {"New open assets address", fun openasset_new/0},
 		    {"Failed checksum", fun failed_checksum/0},
 		    {"Failed checksum p2sh", fun failed_checksum2/0},
-		    {"Color id checksum", fun color_identifier/0}
+		    {"Color id checksum", fun color_identifier/0},
+			{"Is openassets target", fun is_openassets/0}
    ]
   }.
 

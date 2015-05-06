@@ -118,14 +118,17 @@ sign_tx(SigHashType, Tx,
 
 sign_inputs(SigHashType, Inputs, Tx, KeypairDict, Proposals, Unspents) ->
 	lists:map(fun(I) ->
-		{ok, Unspent} = dict:find({I#btxin.txhash, I#btxin.txindex}, Unspents),
-		{InputType, Hash160} = unspent_type(Unspent),
-		case input_type(I) of
-			{unrecognized, _} ->
-				verify_input(InputType, SigHashType, Tx, Hash160, I, KeypairDict, Proposals, Unspent#utxop.script);
-			_ ->
-				sign_input(InputType, SigHashType, Tx, Hash160, I, KeypairDict, Proposals, Unspent#utxop.script)
-			end
+		case dict:find({I#btxin.txhash, I#btxin.txindex}, Unspents) of
+		{ok, Unspent} ->
+			{InputType, Hash160} = unspent_type(Unspent),
+			case input_type(I) of
+				{unrecognized, _} ->
+					verify_input(InputType, SigHashType, Tx, Hash160, I, KeypairDict, Proposals, Unspent#utxop.script);
+				_ ->
+					sign_input(InputType, SigHashType, Tx, Hash160, I, KeypairDict, Proposals, Unspent#utxop.script)
+				end;
+			_ -> I
+		end
 		end, Inputs).
 
 

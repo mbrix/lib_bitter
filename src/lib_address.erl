@@ -49,6 +49,7 @@
 	     verify_keypair/2,
 	     openassets/1,
 	     openassets/2,
+	     is_openassets/1,
 	     checksum/1,
 	     checksum/2,
 	     base58_check/2,
@@ -200,6 +201,14 @@ openassets(Addr) when is_list(Addr) ->
 openassets(Unspent) when is_record(Unspent, utxop) ->
     A = new(Unspent#utxop.script),
     openassets(A).
+
+is_openassets(Address) when is_list(Address) ->
+	try
+		A = lib_address:new(Address),
+		openassets(A) =:= Address
+	catch
+		throw:address_error -> false
+	end.
 
 script(Addr) when is_record(Addr, addr) ->
 	create_script(Addr#addr.type, Addr#addr.bin).
