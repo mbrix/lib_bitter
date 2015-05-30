@@ -5,8 +5,7 @@
   {registered, []},
   {applications, [
                   kernel,
-                  stdlib,
-                  jiffy
+                  stdlib
                  ]},
   {mod, { lib_bitter, []}},
   {env, []}
