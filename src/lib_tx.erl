@@ -576,7 +576,7 @@ to_json(Tx) -> jiffy:encode(to_map(Tx)).
 
 to_map(Tx) when is_binary(Tx) ->
     Tx2 = lib_parse:parse_tx(Tx),
-    to_json(Tx2);
+    to_map(Tx2);
 to_map(Tx) when is_record(Tx, btxdef) ->
     Hexstr = iolist_to_binary(hex:bin_to_hexstr(serialize(Tx))),
     Txid = iolist_to_binary(hex:bin_to_hexstr(hex:bin_reverse(Tx#btxdef.txhash))),
