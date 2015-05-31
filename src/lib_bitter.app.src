@@ -5,7 +5,14 @@
   {registered, []},
   {applications, [
                   kernel,
-                  stdlib
+                  stdlib,
+                  crypto,
+                  base58,
+                  jiffy,
+                  gproc,
+                  erlsha2,
+                  pbkdf2,
+                  libsecp256k1
                  ]},
   {mod, { lib_bitter, []}},
   {env, []}
