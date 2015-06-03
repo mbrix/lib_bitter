@@ -134,6 +134,14 @@ error_derivation() ->
 	PubM = lib_hd:pub(lib_hd:derive(path, M, <<"m/0'/1/2'">>)),
 	?assertThrow(public_key_derivation_error, lib_hd:derive(path, PubM, <<"m/100'">>)).
 
+%% Bip-32 Auditing support
+non_hardened_children() ->
+	Master = hex:hexstr_to_bin("000102030405060708090a0b0c0d0e0f"),
+	M = lib_hd:new(Master),
+	%% Secondary account
+	PubM = lib_hd:pub(lib_hd:derive(path, M, <<"m/0'/1/2'">>)),
+	lib_hd:derive(path, PubM, <<"m/100">>).
+
 serialize() ->
 	Master = hex:hexstr_to_bin("000102030405060708090a0b0c0d0e0f"),
 	M = lib_hd:new(Master),
@@ -159,6 +167,7 @@ hd_test_() ->
 		{"bip32 test vectors 2", fun bip32_vectors2/0},
 		{"public path derivation", fun public_derivation/0},
 		{"error derivations", fun error_derivation/0},
-		{"serialization", fun serialize/0}
+		{"serialization", fun serialize/0},
+		{"Bip32 auditing", fun non_hardened_children/0}
    ]
   }.
