@@ -589,7 +589,7 @@ create_marker_output(M, Meta) when is_list(M) ->
     BinMarker = encode_marker(M, MetaBin),
     validate_marker(BinMarker).
 
-validate_marker(B) when size(B) > 40 ->
+validate_marker(B) when size(B) > 80 ->
     throw(marker_error);
 validate_marker(B) ->
 	#btxout{value = 0,

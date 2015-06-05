@@ -700,6 +700,7 @@ marker_no_input() ->
 % Should we color like normal or discard?
 % I think we should color like normal but funds are probably
 % lost in OP_RETURN outputs
+% Current network code will reject a transaction with more than 1 OP_RETURN
 multiple_markers() ->
 	Inputs = colored_inputs(red),
 	Unspents = inputs_to_unspents(Inputs),
@@ -913,12 +914,14 @@ bad_type_color() ->
 
 % Demonstrates encoded marker size variation on number of disparate colors encoded
 marker_size() ->
-    %% 9 Encoded Transfers
+    %% 24 Encoded Transfers of large quant
     ?assertThrow(marker_error,
-                 lib_color:create_marker_output(lists:seq(1000000,1000010))),
-    %% 32 Encoded Transfers
+                 lib_color:create_marker_output(lists:seq(1000000,1000023))),
+    %% 72 encoded transfer
     ?assertThrow(marker_error,
-                 lib_color:create_marker_output(lists:seq(1,33))).
+                 lib_color:create_marker_output(lists:seq(1,72))),
+    %% 71 encoded transfer OK (80 byte OP_RETURN)
+    lib_color:create_marker_output(lists:seq(1,71)).
 
 marker_meta() ->
     M = lib_color:create_marker_output([10000,100,300], "u=http://cpr.sm/Ekdisj"),
