@@ -28,6 +28,7 @@
 -author('mbranton@emberfinancial.com').
 
 -export([to_json/2,
+		 is_coinbase/1,
          filter_by_confirmations/4,
          filter_by_value/2,
          filter_by_quantity/2,
@@ -58,6 +59,10 @@ to_readable(A) when is_atom(A) -> A;
 to_readable(A) when is_list(A) -> iolist_to_binary(A);
 to_readable(A) when is_binary(A) -> A.
 
+%% Coinbase
+is_coinbase(Unspent) ->
+	Unspent#utxop.coinbase.
+
 %% Filtering
 
 filter_by_confirmations(UnspentList, Height, MinConfirms, MaxConfirms) ->
@@ -66,11 +71,17 @@ filter_by_confirmations(UnspentList, Height, MinConfirms, MaxConfirms) ->
 								 E#utxop{height = Height+1};
 							(E) -> E
 						 end, UnspentList),
+	%% Remap Coinbase unspents to height + 100 Age
+	Remapped2 = lists:map(fun(E) when E#utxop.coinbase =:= true ->
+								 E#utxop{height = Height+100};
+							(E) -> E
+						 end, Remapped),
+	%% Filter unspents
     lists:filter(fun(E) ->
                 MinH = (Height+1) - MinConfirms,
                 MaxH = (Height+1) - MaxConfirms,
                 (E#utxop.height =< MinH) and (E#utxop.height >= MaxH)
-        end, Remapped).
+        end, Remapped2).
 
 filter_by_value(UnspentList, any) -> UnspentList;
 filter_by_value(UnspentList, Value) ->

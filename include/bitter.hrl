@@ -96,7 +96,7 @@
 					qlen}).
 
 % Unspent Transaction Pool
--record(utxop, {hash_index, value, script, address, info, color, quantity, height, state}).
+-record(utxop, {hash_index, value, script, address, info, color, quantity, height, state, coinbase}).
 
 % Address mapping pool
 -record(address, {address, hash_index}).

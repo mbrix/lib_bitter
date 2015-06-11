@@ -117,7 +117,8 @@ output_to_unspent(Txhash, O) ->
 		   color = filter_color(O#btxout.color),
 		   quantity = O#btxout.quantity,
 		   height = 0,
-	       state = undefined}.
+	       state = undefined,
+	       coinbase = false}.
 
 random_unspent(Height) ->
     Address = create_random_address(),
@@ -131,7 +132,8 @@ random_unspent(Height) ->
            color = ?Uncolored,
            quantity = 0,
            height = Height,
-           state = ?Unspent_Confirmed}.
+           state = ?Unspent_Confirmed,
+           coinbase = false}.
 
 filter_color(uncolored) -> ?Uncolored;
 filter_color(R) -> R.
