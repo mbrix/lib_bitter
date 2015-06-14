@@ -42,6 +42,7 @@
          create_output/1,
          create_output/3,
          create_output/4,
+         create_transaction/0,
          create_transaction/2,
          create_transaction/3,
          create_block/0,
@@ -219,6 +220,9 @@ create_output(p2sh, Txindex, Value, Address) ->
 		    value=Value,
 		    script = lib_tx:create_script(p2sh, Address),
 		    address=Address}.
+
+create_transaction() ->
+	create_transaction([create_input()], create_outputs(1)).
 
 create_transaction(Inputs, Outputs) ->
 	create_transaction(crypto:rand_bytes(32), Inputs, Outputs).

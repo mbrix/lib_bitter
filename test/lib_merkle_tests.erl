@@ -56,6 +56,99 @@ block() ->
 	{ok, Root} = lib_merkle:build(Block),
 	?assertEqual(Block#bbdef.merkleroot, lib_merkle:hash(Root)).
 
+simplepartial() ->
+	Tx1 = lib_test:create_transaction(),
+	Tx2 = lib_test:create_transaction(),
+	{ok, MerkleRoot} = lib_merkle:build([Tx1, Tx2]),
+	Root2 = lib_merkle:match(MerkleRoot, fun(Tx) when Tx#btxdef.txhash =:= Tx1#btxdef.txhash -> 1;
+											(_) -> 0 end),
+	{BitString, Hashes} = lib_merkle:partial(Root2),
+	?assertMatch(<<1:1, 1:1, 0:1, _/bitstring>>, BitString),
+	?assertEqual([Tx1#btxdef.txhash, Tx2#btxdef.txhash], Hashes),
+
+	%% Now switch match
+	Root3 = lib_merkle:match(MerkleRoot, fun(Tx) when Tx#btxdef.txhash =:= Tx2#btxdef.txhash -> 1;
+											(_) -> 0 end),
+	{BitString2, Hashes2} = lib_merkle:partial(Root3),
+	?assertMatch(<<1:1, 0:1, 1:1, _/bitstring>>, BitString2),
+	?assertEqual([Tx1#btxdef.txhash, Tx2#btxdef.txhash], Hashes2).
+
+twolevels() ->
+	Tx1 = lib_test:create_transaction(),
+	Tx2 = lib_test:create_transaction(),
+	Tx3 = lib_test:create_transaction(),
+	Tx4 = lib_test:create_transaction(),
+	{ok, MerkleRoot} = lib_merkle:build([Tx1, Tx2, Tx3, Tx4]),
+	Root2 = lib_merkle:match(MerkleRoot, fun(Tx) when Tx#btxdef.txhash =:= Tx3#btxdef.txhash -> 1;
+											(_) -> 0 end),
+	{BitString, Hashes} = lib_merkle:partial(Root2),
+	?assertMatch(<<1:1, 0:1, 1:1, 1:1, 0:1, _/bitstring>>, BitString),
+	[_, Hash2, Hash3] = Hashes,
+	?assertEqual(Tx3#btxdef.txhash, Hash2),
+	?assertEqual(Tx4#btxdef.txhash, Hash3).
+
+
+partial() ->
+	Block = loadblock(),
+	{ok, Root} = lib_merkle:build(Block),
+	{BitString, Hashes} = lib_merkle:partial(Root),
+	?assertEqual(<<0:8>>, BitString),
+	?assertEqual([lib_merkle:hash(Root)], Hashes).
+
+%% Every transaction matches.
+fullmatch() ->
+	Block = loadblock(),
+	{ok, Root} = lib_merkle:build(Block),
+	Root2 = lib_merkle:match(Root, fun(_) -> 1 end),
+	{_BitString, Hashes} = lib_merkle:partial(Root2),
+	?assertEqual(length(Block#bbdef.txdata), length(Hashes)).
+
+%% Match a single transaction
+matchone() ->
+	Block = loadblock(),
+	{ok, Root} = lib_merkle:build(Block),
+	TxHash = <<94,117,13,180,167,75,222,155,150,50,84,75,174,165,70,26,182,31,208,187,41,43,212,9,247,192,27,11,128,255,80,171>>,
+	Root2 = lib_merkle:match(Root, fun(Tx) when Tx#btxdef.txhash =:= TxHash -> 1;
+								   (_) -> 0 end),
+	{_BitString, _Hashes} = lib_merkle:partial(Root2).
+
+simplevalidate() ->
+	Tx1 = lib_test:create_transaction(),
+	Tx2 = lib_test:create_transaction(),
+	{ok, MerkleRoot} = lib_merkle:build([Tx1, Tx2]),
+	Root2 = lib_merkle:match(MerkleRoot, fun(Tx) when Tx#btxdef.txhash =:= Tx1#btxdef.txhash -> 1;
+											(_) -> 0 end),
+	{BitString, Hashes} = lib_merkle:partial(Root2),
+	?assertEqual({valid, [Tx1#btxdef.txhash]}, lib_merkle:validate(Root2, BitString, Hashes)).
+
+validate() ->
+	Block = loadblock(),
+	{ok, Root} = lib_merkle:build(Block),
+	TxHash = <<94,117,13,180,167,75,222,155,150,50,84,75,174,165,70,26,182,31,208,187,41,43,212,9,247,192,27,11,128,255,80,171>>,
+	Root2 = lib_merkle:match(Root, fun(Tx) when Tx#btxdef.txhash =:= TxHash -> 1;
+								   (_) -> 0 end),
+	{BitString, Hashes} = lib_merkle:partial(Root2),
+	%?debugFmt("~p~n", [Hashes]),
+	?assertEqual({valid, [TxHash]}, lib_merkle:validate(Root2, BitString, Hashes)).
+
+serialize_block() ->
+	Block = loadblock(),
+	TxHash = <<94,117,13,180,167,75,222,155,150,50,84,75,174,165,70,26,182,31,208,187,41,43,212,9,247,192,27,11,128,255,80,171>>,
+	MatchFun = fun(Tx) when Tx#btxdef.txhash =:= TxHash -> 1; (_) -> 0 end,
+	lib_merkle:serialize(lib_merkle:serialize(Block, MatchFun)).
+
+
+
+count() ->
+	Block = loadblock(),
+	{ok, Root} = lib_merkle:build(Block),
+	?assertEqual(296, lib_merkle:count(Root)).
+
+countleafs() ->
+	Block = loadblock(),
+	{ok, Root} = lib_merkle:build(Block),
+	?assertEqual(length(Block#bbdef.txdata), lib_merkle:countleafs(Root)).
+
 
 merkle_test_() -> 
   {foreach,
@@ -64,7 +157,17 @@ merkle_test_() ->
    [
 		{"One datum", fun one/0},
 		{"Two datum", fun two/0},
-		{"Block merkleroot", fun block/0}
+		{"Count nodes", fun count/0},
+		{"Count leafs", fun countleafs/0},
+		{"Block merkleroot", fun block/0},
+		{"Simple partial tree", fun simplepartial/0},
+		{"Two levels of txs", fun twolevels/0},
+		{"Build partial empty tree", fun partial/0},
+		{"Build partial full tree", fun fullmatch/0},
+		{"Match one transaction", fun matchone/0},
+		{"Simple validate", fun simplevalidate/0},
+		{"Validate partial", fun validate/0},
+		{"Serialize", fun serialize_block/0}
    ]
   }.
 
@@ -76,3 +179,7 @@ loadblock() ->
     {_, BlockRecord, _, _} = lib_parse:extract(RawBlock),
     BlockRecord.
 
+print_bits (<<>>) -> ok;
+print_bits (<<H:1/bitstring, Rest/bitstring>>) ->
+	?debugFmt("~p", [H]),
+    print_bits(Rest).
