@@ -179,7 +179,7 @@ loadblock() ->
     {_, BlockRecord, _, _} = lib_parse:extract(RawBlock),
     BlockRecord.
 
-print_bits (<<>>) -> ok;
-print_bits (<<H:1/bitstring, Rest/bitstring>>) ->
-	?debugFmt("~p", [H]),
-    print_bits(Rest).
+%print_bits (<<>>) -> ok;
+%print_bits (<<H:1/bitstring, Rest/bitstring>>) ->
+%	?debugFmt("~p", [H]),
+%    print_bits(Rest).

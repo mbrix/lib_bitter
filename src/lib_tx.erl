@@ -477,8 +477,8 @@ serialize(Tx) when is_record(Tx, btxdef) ->
 
 serialize_btxdef(Tx) ->
 	TransactionVersion    	=  Tx#btxdef.txversion,  
-	InputCount            	=  Tx#btxdef.inputcount, 
-	OutputCount           	=  Tx#btxdef.outputcount,
+	InputCount            	=  length(Tx#btxdef.txinputs), 
+	OutputCount           	=  length(Tx#btxdef.txoutputs),
 	TransactionLockTime   	=  Tx#btxdef.txlocktime,
 	TxInputs	            =  Tx#btxdef.txinputs,
 	TxOutputs	            =  Tx#btxdef.txoutputs,  

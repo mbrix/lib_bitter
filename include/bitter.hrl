@@ -29,9 +29,11 @@
 -define(DUSTLIMIT, 600). %% 546
 -define(DEFAULTFEE, 10000).
 -define(FEE_PER_K, 1000).
--define(SIGHASH_NONE, 0).
+-define(SIGHASH_OLD, 0).
 -define(SIGHASH_ALL, 1).
--define(SIGHASH_SINGLE, 2). % ???.
+-define(SIGHASH_NONE, 2).
+-define(SIGHASH_SINGLE, 3).
+-define(SIGHASH_ANYONECANPAY, 128).
 -define(MISSINGSIG, <<255,255,255,255,255,255,255,255,255,255>>).
 
 -define(MARKER, <<-1:256>>).
