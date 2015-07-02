@@ -29,7 +29,7 @@
 
 -export([parse/1,
          parse_file/1,
-	     parse_block/1,
+	     parse_block/2,
 	     parse_raw_block/1,
 	     parse_raw_block/2,
 	     parse_raw/1,
@@ -40,7 +40,6 @@
 	     extract/1,
 	     extract_header/1]).
 
--define(MAGICBYTE, 16#D9B4BEF9).
 -include("bitter.hrl").
 
 parse_raw(Bin) ->
@@ -63,9 +62,9 @@ parse_file({continue, Block, BlockOffsets, TxOffsets, Fun}, Acc) ->
 parse_file(done, Acc) -> Acc.
 
 
-parse_block(Block) ->
+parse_block(MagicByte, Block) ->
 	Size = size(Block),
-	B = erlang:iolist_to_binary([<<?MAGICBYTE:32/little, 
+	B = erlang:iolist_to_binary([<<MagicByte:32/little, 
     						     Size:32/little>>,
 								 Block]),
 	extractLoop(B, 0).
@@ -289,7 +288,7 @@ getTransactions(TXCount, Tbin, Acc, Offsets, StartOffset) ->
 				StartOffset + TXLength).
 
 extract(<< >>) -> ok;
-extract(<<?MAGICBYTE:32/little, 
+extract(<<MagicByte:32/little, 
     HeaderLength:32/little,
     VersionNumber:32/little, 
     PreviousHash:256/bitstring, 
@@ -309,17 +308,17 @@ extract(<<?MAGICBYTE:32/little,
    [TXCount, Tbin] = getVarInt(BinRest),
     TxDataOffset = 88 + (byte_size(BinRest) - byte_size(Tbin)),
    [Tdata, Rest, TxOffsets] = getTransactions(TXCount, Tbin, TxDataOffset),
-   {ok, #bbdef{network=?MAGICBYTE,
-   		                 blockhash=binary:copy(BlockHash),
-   		                 headerlength=HeaderLength,
-   		                 version=VersionNumber,
-   		                 previoushash=binary:copy(PreviousHash),
-   		                 merkleroot=binary:copy(MerkleRoot),
-   		                 timestamp=TimeStamp,
-   		                 difficulty=TargetDifficulty,
-   		                 nonce=Nonce,
-   		                 txcount=TXCount,
-						 txdata=lists:reverse(Tdata)},
+   {ok, #bbdef{network=MagicByte,
+   		       blockhash=binary:copy(BlockHash),
+   		       headerlength=HeaderLength,
+   		       version=VersionNumber,
+   		       previoushash=binary:copy(PreviousHash),
+   		       merkleroot=binary:copy(MerkleRoot),
+   		       timestamp=TimeStamp,
+   		       difficulty=TargetDifficulty,
+   		       nonce=Nonce,
+   		       txcount=TXCount,
+			   txdata=lists:reverse(Tdata)},
 	lists:reverse(TxOffsets), Rest};
  extract(<<R:8, _Bin/binary>>) when R > 0 ->
 	io:format("Problem: ~w~n", [binary:bin_to_list(_Bin, {0, 10})]),
@@ -327,7 +326,7 @@ extract(<<?MAGICBYTE:32/little,
 extract(Data) -> {scan, Data}.
 
 
-extract_header(<<?MAGICBYTE:32/little, 
+extract_header(<<MagicByte:32/little, 
     HeaderLength:32/little,
     VersionNumber:32/little, 
     PreviousHash:256/bitstring, 
@@ -345,15 +344,15 @@ extract_header(<<?MAGICBYTE:32/little,
                 Nonce:32/little>>,
 	BlockHash = crypto:hash(sha256, crypto:hash(sha256, HashBin)),
    [TXCount, _Tbin] = getVarInt(BinRest),
-   {ok, #bbdef{network=?MAGICBYTE,
-   		                 blockhash=binary:copy(BlockHash),
-   		                 headerlength=HeaderLength,
-   		                 version=VersionNumber,
-   		                 previoushash=binary:copy(PreviousHash),
-   		                 merkleroot=binary:copy(MerkleRoot),
-   		                 timestamp=TimeStamp,
-   		                 difficulty=TargetDifficulty,
-   		                 nonce=Nonce,
-   		                 txcount=TXCount,
+   {ok, #bbdef{network=MagicByte,
+   			   blockhash=binary:copy(BlockHash),
+   		       headerlength=HeaderLength,
+   		       version=VersionNumber,
+   		       previoushash=binary:copy(PreviousHash),
+   		       merkleroot=binary:copy(MerkleRoot),
+   		       timestamp=TimeStamp,
+   		       difficulty=TargetDifficulty,
+   		       nonce=Nonce,
+   		       txcount=TXCount,
                txdata=[]}}.
 
