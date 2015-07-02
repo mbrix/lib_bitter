@@ -35,7 +35,9 @@
 		 eval/2,
 		 eval/4,
 		 revmap/0,
-		 build/1]).
+		 build/1,
+		 ser/1,
+		 setvch/1]).
 
 %% Util
 revmap() -> revmap(?OP_MAP, #{}).
@@ -76,20 +78,23 @@ ops(Hex, <<Op:8, Rest/binary>>, OPMap, Ops) when Op > 0, Op < 76 ->
 ops(Hex, <<Op:8, _Rest/binary>>, OPMap, Ops) when Op > 185, Op < 256 ->
 	ops(Hex, <<>>, OPMap, [op_return|Ops]);
 
-ops(Hex, <<?OP_PUSHDATA1, Size:8, Rest/binary>>, OPMap, Ops) ->
-	BSize = Size*8,
-	<<Datum:BSize/bitstring, R2/binary>> = Rest,
-	ops(Hex, R2, OPMap, [Datum|Ops]);
+ops(Hex, <<?OP_PUSHDATA1, Size:8, Datum:Size/binary, Rest/binary>>, OPMap, Ops) ->
+	ops(Hex, Rest, OPMap, [Datum|Ops]);
 
-ops(Hex, <<?OP_PUSHDATA2, Size:16, Rest/binary>>, OPMap, Ops) ->
-	BSize = Size*8,
-	<<Datum:BSize/bitstring, R2/binary>> = Rest,
-	ops(Hex, R2, OPMap, [Datum|Ops]);
+ops(Hex, <<?OP_PUSHDATA1, _:8, Rest/binary>>, OPMap, Ops) ->
+	ops(Hex, Rest, OPMap, [Rest|Ops]);
 
-ops(Hex, <<?OP_PUSHDATA4, Size:32, Rest/binary>>, OPMap, Ops) ->
-	BSize = Size*8,
-	<<Datum:BSize/bitstring, R2/binary>> = Rest,
-	ops(Hex, R2, OPMap, [Datum|Ops]);
+ops(Hex, <<?OP_PUSHDATA2, Size:16, Datum:Size/binary, Rest/binary>>, OPMap, Ops) ->
+	ops(Hex, Rest, OPMap, [Datum|Ops]);
+
+ops(Hex, <<?OP_PUSHDATA2, _:16, Rest/binary>>, OPMap, Ops) ->
+	ops(Hex, Rest, OPMap, [Rest|Ops]);
+
+ops(Hex, <<?OP_PUSHDATA4, Size:32, Datum:Size/binary,Rest/binary>>, OPMap, Ops) ->
+	ops(Hex, Rest, OPMap, [Datum|Ops]);
+
+ops(Hex, <<?OP_PUSHDATA4, _:32, Rest/binary>>, OPMap, Ops) ->
+	ops(Hex, Rest, OPMap, [Rest|Ops]);
 
 ops(Hex, <<Op:8, Rest/binary>>, OPMap, Ops) ->
 	{Datum, R2} = lookup(Op, OPMap, Rest),
@@ -125,21 +130,48 @@ check(<<>>) -> false;
 check(false) -> false;
 check(_) -> true.
 
+fastpath(<<Length:8, Sig:Length/binary,
+		   PLength:8, PubKey:PLength/binary>>,
+		 <<?OP_DUP:8, ?OP_HASH160:8, 20:8, PubHash:20/binary,
+		   ?OP_EQUALVERIFY:8, ?OP_CHECKSIG:8>> = SBin,
+		 Index, Tx) ->
+	PubHash = hash(PubKey),
+	{SigStr, Hash} = lib_sign:signing_hash(Tx, Index, SBin, Sig),
+	case libsecp256k1:ecdsa_verify(Hash, SigStr, PubKey) of
+		ok -> true; 
+		error -> false
+	end.
+
 %% only works if checksig not defined, mostly for debugging
 eval(Script) ->
 	eval(Script, [], [], undefined, 0, undefined, []).
 
 eval(ScriptSig, ScriptPubKey, Index, Tx) ->
 	%% Lets forget the alt stack for a second
-	{StartStack, StartAlt, SubScriptBin} = eval(ScriptSig, [], [], Tx, Index, ScriptPubKey, []),
-	{EndStack, _EndAlt, _EndSubScriptBin} = eval(ScriptPubKey, StartStack, StartAlt,
-												 Tx, Index, SubScriptBin, []),
-	case check(EndStack) of
-		true -> true;
-		false ->
-			?debugFmt("ScriptSig: ~p~n PubKey: ~p~n Index: ~p~n Tx: ~p ~n",
-					  [ScriptSig, ScriptPubKey, Index, lib_tx:serialize(Tx)]),
-			false
+	CanonicalTx = lib_sign:canonical(Tx),
+	%% Let's fast path several types of transactions.
+	try
+		fastpath(ScriptSig, ScriptPubKey, Index, CanonicalTx)
+	catch
+		_:_ ->
+			%try
+				{StartStack, StartAlt, SubScriptBin} = eval(ScriptSig, [], [],
+															CanonicalTx, Index, ScriptPubKey, []),
+				{EndStack, _EndAlt, _EndSubScriptBin} = eval(ScriptPubKey, StartStack, StartAlt,
+															 CanonicalTx, Index, SubScriptBin, []),
+				case check(EndStack) of
+					true -> true;
+					false ->
+						?debugFmt("ScriptSig: ~p~n PubKey: ~p~n Index: ~p~n Tx: ~p ~n",
+								  [ScriptSig, ScriptPubKey, Index, lib_tx:serialize(Tx)]),
+						false
+				end
+			%catch
+			%	X:Y -> ?debugFmt("Caught Evaluation error: ~p ~p ~n", [X,Y]),
+			%			?debugFmt("ScriptSig: ~p~n PubKey: ~p~n Index: ~p~n Tx: ~p ~n",
+			%					  [ScriptSig, ScriptPubKey, Index, lib_tx:serialize(Tx)]),
+			%		   false
+			%end
 	end.
 
 eval(<<>>, _Stack, _Alt, _Tx, _Index, SubScriptBin, IfFlag) when length(IfFlag) > 0 ->
@@ -191,9 +223,12 @@ eval(<<?OP_VERIFY, _/binary>>, [], _, _, _, _, _) ->
 eval(<<?OP_VERIFY, Rest/binary>>, [1|_]=S, AltStack, Tx, Index, SubScriptBin, IfFlag) ->
 	eval(Rest, S, AltStack, Tx, Index, SubScriptBin, IfFlag);
 
-eval(<<?OP_RETURN, _/binary>>, [], _, _, _, _, _) ->
-	{false, false, <<>>};
 
+%% Open question, Should OP_RETURN in a non executing If Branch scan forward until the next ELSE or ENDIF?
+eval(<<?OP_RETURN, Rest/binary>>, [X|S], AltStack, Tx, Index, SubScriptBin,[{0, _, _}|_]=IfFlag) ->
+	eval(Rest, S, [X|AltStack], Tx, Index, SubScriptBin, IfFlag);
+eval(<<?OP_RETURN, _/binary>>, _, _, _, _, _, _) ->
+	{false, false, <<>>};
 
 eval(<<?OP_TOALTSTACK, Rest/binary>>, [X|S], AltStack, Tx, Index, SubScriptBin, IfFlag) ->
 	eval(Rest, S, [X|AltStack], Tx, Index, SubScriptBin, IfFlag);
@@ -370,22 +405,22 @@ eval(<<?OP_NUMNOTEQUAL, Rest/binary>>, [A,A|S], AltStack, Tx, Index, SubScriptBi
 eval(<<?OP_NUMNOTEQUAL, Rest/binary>>, [_,_|S], AltStack, Tx, Index, SubScriptBin, IfFlag) ->
 	eval(Rest, [1|S], AltStack, Tx, Index, SubScriptBin, IfFlag);
 
-eval(<<?OP_LESSTHAN, Rest/binary>>, [A,B|S], AltStack, Tx, Index, SubScriptBin, IfFlag) when A < B -> 
+eval(<<?OP_LESSTHAN, Rest/binary>>, [B,A|S], AltStack, Tx, Index, SubScriptBin, IfFlag) when A < B -> 
 	eval(Rest, [1|S], AltStack, Tx, Index, SubScriptBin, IfFlag);
 eval(<<?OP_LESSTHAN, Rest/binary>>, [_,_|S], AltStack, Tx, Index, SubScriptBin, IfFlag) ->
 	eval(Rest, [0|S], AltStack, Tx, Index, SubScriptBin, IfFlag);
 
-eval(<<?OP_GREATERTHAN, Rest/binary>>, [A,B|S], AltStack, Tx, Index, SubScriptBin, IfFlag) when A > B -> 
+eval(<<?OP_GREATERTHAN, Rest/binary>>, [B,A|S], AltStack, Tx, Index, SubScriptBin, IfFlag) when A > B -> 
 	eval(Rest, [1|S], AltStack, Tx, Index, SubScriptBin, IfFlag);
 eval(<<?OP_GREATERTHAN, Rest/binary>>, [_,_|S], AltStack, Tx, Index, SubScriptBin, IfFlag) ->
 	eval(Rest, [0|S], AltStack, Tx, Index, SubScriptBin, IfFlag);
 
-eval(<<?OP_LESSTHANOREQUAL, Rest/binary>>, [A,B|S], AltStack, Tx, Index, SubScriptBin, IfFlag) when A =< B -> 
+eval(<<?OP_LESSTHANOREQUAL, Rest/binary>>, [B,A|S], AltStack, Tx, Index, SubScriptBin, IfFlag) when A =< B -> 
 	eval(Rest, [1|S], AltStack, Tx, Index, SubScriptBin, IfFlag);
 eval(<<?OP_LESSTHANOREQUAL, Rest/binary>>, [_,_|S], AltStack, Tx, Index, SubScriptBin, IfFlag) ->
 	eval(Rest, [0|S], AltStack, Tx, Index, SubScriptBin, IfFlag);
 
-eval(<<?OP_GREATERTHANOREQUAL, Rest/binary>>, [A,B|S], AltStack, Tx, Index, SubScriptBin, IfFlag) when A >= B -> 
+eval(<<?OP_GREATERTHANOREQUAL, Rest/binary>>, [B,A|S], AltStack, Tx, Index, SubScriptBin, IfFlag) when A >= B -> 
 	eval(Rest, [1|S], AltStack, Tx, Index, SubScriptBin, IfFlag);
 eval(<<?OP_GREATERTHANOREQUAL, Rest/binary>>, [_,_|S], AltStack, Tx, Index, SubScriptBin, IfFlag) ->
 	eval(Rest, [0|S], AltStack, Tx, Index, SubScriptBin, IfFlag);
@@ -410,19 +445,19 @@ eval(<<?OP_WITHIN, Rest/binary>>, [_,_,_|S], AltStack, Tx, Index, SubScriptBin, 
 	eval(Rest, [0|S], AltStack, Tx, Index, SubScriptBin, IfFlag);
 
 eval(<<?OP_RIPEMD160, Rest/binary>>, [A|S], AltStack, Tx, Index, SubScriptBin, IfFlag) ->
-	eval(Rest, [crypto:hash(ripemd160, A)|S], AltStack, Tx, Index, SubScriptBin, IfFlag);
+	eval(Rest, [ripemd160(A)|S], AltStack, Tx, Index, SubScriptBin, IfFlag);
 
 eval(<<?OP_SHA1, Rest/binary>>, [A|S], AltStack, Tx, Index, SubScriptBin, IfFlag) ->
-	eval(Rest, [crypto:hash(sha, A)|S], AltStack, Tx, Index, SubScriptBin, IfFlag);
+	eval(Rest, [sha(A)|S], AltStack, Tx, Index, SubScriptBin, IfFlag);
 
 eval(<<?OP_SHA256, Rest/binary>>, [A|S], AltStack, Tx, Index, SubScriptBin, IfFlag) ->
-	eval(Rest, [crypto:hash(sha256, A)|S], AltStack, Tx, Index, SubScriptBin, IfFlag);
+	eval(Rest, [sha256(A)|S], AltStack, Tx, Index, SubScriptBin, IfFlag);
 
 eval(<<?OP_HASH160, Rest/binary>>, [A|S], AltStack, Tx, Index, SubScriptBin, IfFlag) ->
-	eval(Rest, [crypto:hash(ripemd160, crypto:hash(sha256, A))|S], AltStack, Tx, Index, SubScriptBin, IfFlag);
+	eval(Rest, [hash(A)|S], AltStack, Tx, Index, SubScriptBin, IfFlag);
 
 eval(<<?OP_HASH256, Rest/binary>>, [A|S], AltStack, Tx, Index, SubScriptBin, IfFlag) ->
-	eval(Rest, [crypto:hash(sha256, crypto:hash(sha256, A))|S], AltStack, Tx, Index, SubScriptBin, IfFlag);
+	eval(Rest, [dhash(A)|S], AltStack, Tx, Index, SubScriptBin, IfFlag);
 
 
 %% Should this be in the last executed OP?
@@ -432,20 +467,20 @@ eval(<<?OP_CODESEPARATOR, Rest/binary>>, S, AltStack, Tx, Index, _SubScriptBin, 
 
 %% IF Logic is complicated...
 %% If is true continue executing
-eval(<<?OP_IF, Rest/binary>>, [1|S], AltStack, Tx, Index, SubScriptBin, IfFlag) ->
-	%% Push the stack to the Flags
-	eval(Rest, S, AltStack, Tx, Index, SubScriptBin, [{1, S, AltStack}|IfFlag]);
 
 eval(<<?OP_IF, Rest/binary>>, [0|S], AltStack, Tx, Index, SubScriptBin, IfFlag) ->
 	eval(Rest, S, AltStack, Tx, Index, SubScriptBin, [{0, S, AltStack}|IfFlag]);
 
-eval(<<?OP_NOTIF, Rest/binary>>, [0|S], AltStack, Tx, Index, SubScriptBin, IfFlag) ->
+eval(<<?OP_IF, Rest/binary>>, [_|S], AltStack, Tx, Index, SubScriptBin, IfFlag) ->
 	%% Push the stack to the Flags
 	eval(Rest, S, AltStack, Tx, Index, SubScriptBin, [{1, S, AltStack}|IfFlag]);
 
 eval(<<?OP_NOTIF, Rest/binary>>, [1|S], AltStack, Tx, Index, SubScriptBin, IfFlag) ->
 	eval(Rest, S, AltStack, Tx, Index, SubScriptBin, [{0, S, AltStack}|IfFlag]);
 
+eval(<<?OP_NOTIF, Rest/binary>>, [_|S], AltStack, Tx, Index, SubScriptBin, IfFlag) ->
+	%% Push the stack to the Flags
+	eval(Rest, S, AltStack, Tx, Index, SubScriptBin, [{1, S, AltStack}|IfFlag]);
 
 eval(<<?OP_ELSE, _Rest/binary>>, _Stack, _AltStack, _Tx, _Index, _SubScriptBin, []) ->
 	%% Else with no IF block
@@ -477,33 +512,32 @@ eval(<<Op:8, Rest/binary>>, Stack, AltStack, Tx, Index, SubScriptBin, IfFlag) wh
 	<<PushData:Size/bitstring, R2/binary>> = Rest,
 	eval(R2, [PushData|Stack], AltStack, Tx, Index, SubScriptBin, IfFlag);
 
-eval(<<?OP_PUSHDATA1, Size:8, Rest/binary>>, Stack, AltStack, Tx, Index, SubScriptBin, IfFlag) ->
-	BSize = if Size > size(Rest) -> size(Rest)*8;
-			   true -> Size*8
-			end,
-	<<Datum:BSize/bitstring, R2/binary>> = Rest,
-	eval(R2, [Datum|Stack], AltStack, Tx, Index, SubScriptBin, IfFlag);
+eval(<<?OP_PUSHDATA1, Size:8, Datum:Size/binary, Rest/binary>>,
+	 Stack, AltStack, Tx, Index, SubScriptBin, IfFlag) ->
+	eval(Rest, [Datum|Stack], AltStack, Tx, Index, SubScriptBin, IfFlag);
+eval(<<?OP_PUSHDATA1, _:8, Rest/binary>>,
+	 Stack, AltStack, Tx, Index, SubScriptBin, IfFlag) ->
+	eval(Rest, [Rest|Stack], AltStack, Tx, Index, SubScriptBin, IfFlag);
 
-eval(<<?OP_PUSHDATA2, Size:16, Rest/binary>>, Stack, AltStack, Tx, Index, SubScriptBin, IfFlag) ->
-	BSize = if Size > size(Rest) -> size(Rest)*8;
-			   true -> Size*8
-			end,
-	<<Datum:BSize/bitstring, R2/binary>> = Rest,
-	eval(R2, [Datum|Stack], AltStack, Tx, Index, SubScriptBin, IfFlag);
+eval(<<?OP_PUSHDATA2, Size:16, Datum:Size/binary, Rest/binary>>,
+	 Stack, AltStack, Tx, Index, SubScriptBin, IfFlag) ->
+	eval(Rest, [Datum|Stack], AltStack, Tx, Index, SubScriptBin, IfFlag);
+eval(<<?OP_PUSHDATA2, _:16, Rest/binary>>,
+	 Stack, AltStack, Tx, Index, SubScriptBin, IfFlag) ->
+	eval(Rest, [Rest|Stack], AltStack, Tx, Index, SubScriptBin, IfFlag);
 
-eval(<<?OP_PUSHDATA4, Size:32, Rest/binary>>, Stack, AltStack, Tx, Index, SubScriptBin, IfFlag) ->
-	BSize = if Size > size(Rest) -> size(Rest)*8;
-			   true -> Size*8
-			end,
-	<<Datum:BSize/bitstring, R2/binary>> = Rest,
-	eval(R2, [Datum|Stack], AltStack, Tx, Index, SubScriptBin, IfFlag);
+eval(<<?OP_PUSHDATA4, Size:32, Datum:Size/binary, Rest/binary>>,
+	 Stack, AltStack, Tx, Index, SubScriptBin, IfFlag) ->
+	eval(Rest, [Datum|Stack], AltStack, Tx, Index, SubScriptBin, IfFlag);
+eval(<<?OP_PUSHDATA4, _:32, Rest/binary>>,
+	 Stack, AltStack, Tx, Index, SubScriptBin, IfFlag) ->
+	eval(Rest, [Rest|Stack], AltStack, Tx, Index, SubScriptBin, IfFlag);
 
 eval(<<?OP_DUP, Rest/binary>>, [Datum|Stack], AltStack, Tx, Index, SubScriptBin, IfFlag) ->
 	eval(Rest, [Datum,Datum|Stack], AltStack, Tx, Index, SubScriptBin, IfFlag);
 
 eval(<<?OP_HASH160, Rest/binary>>, [Datum|Stack], AltStack, Tx, Index, SubScriptBin, IfFlag) ->
-	eval(Rest, [crypto:hash(ripemd160,
-							crypto:hash(sha256, Datum))|Stack], AltStack, Tx, Index, SubScriptBin, IfFlag);
+	eval(Rest, [hash(Datum)|Stack], AltStack, Tx, Index, SubScriptBin, IfFlag);
 
 eval(<<?OP_EQUALVERIFY, Rest/binary>>, [Datum,Datum|Stack], AltStack, Tx, Index, SubScriptBin, IfFlag) ->
 	eval(Rest, Stack, AltStack, Tx, Index, SubScriptBin, IfFlag);
@@ -518,24 +552,13 @@ eval(<<?OP_CHECKSIGVERIFY, Rest/binary>>, [Pubkey,Sig|Stack], AltStack, Tx, Inde
 	end;
 
 eval(<<?OP_CHECKSIG:8, Rest/binary>>, [Pubkey,Sig|Stack], AltStack, Tx, Index, SubScriptBin, IfFlag) ->
-	%?debugFmt("SubscriptBin: ~p~n", [SubScriptBin]),
-	SigSize = size(Sig)*8-8,
-	<<SigStr:(SigSize)/bitstring, SigHashType:8>> = Sig,
-	%?debugFmt("Sighashtype: ~p~n", [SigHashType]),
-	<<_:(SigSize)/bitstring, _:3, SigType:5>> = Sig,
-	Tx2 = prepare_tx(Tx, Index, SubScriptBin, SigType),
-	%?debugFmt("Prepared TX ~p~n", [Tx2]),
-	Tx3 = anyonecanpay(SigHashType band ?SIGHASH_ANYONECANPAY, Tx2, Index),
-	SerializedTx = iolist_to_binary([lib_tx:serialize_btxdef(Tx3), <<SigHashType:32/little>>]),
-	%?debugFmt("MSG: ~p~n", [hex:bin_to_hexstr(lib_tx:hash_tx(SerializedTx))]),
-	%?debugFmt("SIG: ~p~n", [hex:bin_to_hexstr(SigStr)]),
-	%?debugFmt("PUB: ~p~n", [hex:bin_to_hexstr(Pubkey)]),
-
-	case libsecp256k1:ecdsa_verify(lib_tx:hash_tx(SerializedTx), SigStr, Pubkey) of
+	{SigStr, Hash} = lib_sign:signing_hash(Tx, Index, SubScriptBin, Sig),
+	case libsecp256k1:ecdsa_verify(Hash, SigStr, Pubkey) of
 		ok -> 
 	%		?debugFmt("ecdsa verify~n", []),
 			eval(Rest, [1|Stack], AltStack, Tx, Index, SubScriptBin, IfFlag);
-		error -> eval(Rest, [0|Stack], AltStack, Tx, Index, SubScriptBin, IfFlag)
+		error -> 
+			eval(Rest, [0|Stack], AltStack, Tx, Index, SubScriptBin, IfFlag)
 	end;
 
 
@@ -559,12 +582,7 @@ eval(<<Op:8, Rest/binary>>, Stack, AltStack, Tx, Index, SubScriptBin, IfFlag) ->
 
 check_sigs([], _Keys, _Tx, _Index, _SubScriptBin) -> 1;
 check_sigs([Sig|Sigs], Keys, Tx, Index, SubScriptBin) ->
-	SigSize = size(Sig)*8-8,
-	<<SigStr:(SigSize)/bitstring, SigHashType:8>> = Sig,
-	<<_:(SigSize)/bitstring, _:3, SigType:5>> = Sig,
-	Tx2 = prepare_tx(Tx, Index, SubScriptBin, SigType),
-	SerializedTx = iolist_to_binary([lib_tx:serialize_btxdef(Tx2), <<SigHashType:32/little>>]),
-	DHash = lib_tx:hash_tx(SerializedTx),
+	{SigStr, DHash} = lib_sign:signing_hash(Tx, Index, SubScriptBin, Sig),
 	case match_sig(DHash, SigStr, Keys, []) of
 		{ok, KeysLeft} -> check_sigs(Sigs, KeysLeft, Tx, Index, SubScriptBin);
 		missing -> 0
@@ -590,47 +608,53 @@ roll([H|Stack], 0, HList) -> {ok, [H|(lists:reverse(HList) ++ Stack)]};
 roll([H|T],X,HList) ->
 	roll(T,X-1,[H|HList]).
 
-prepare_tx(Tx, Index, SubScript, ?SIGHASH_ALL) ->
-	InterestingInput = lists:nth(Index+1, Tx#btxdef.txinputs),
-	Tx#btxdef{txinputs = lists:map(fun(I) when I =:= InterestingInput ->
-										   InterestingInput#btxin{script = SubScript};
-									  (I2) -> I2#btxin{script = <<>>}
-								   end, Tx#btxdef.txinputs)};
-prepare_tx(Tx, Index, SubScript, ?SIGHASH_OLD) ->
-	prepare_tx(Tx, Index, SubScript, ?SIGHASH_ALL);
+hash(X) when is_integer(X) -> hash(ser(X));
+hash(X) -> crypto:hash(ripemd160, crypto:hash(sha256, X)).
 
-prepare_tx(Tx, Index, SubScript, ?SIGHASH_NONE) ->
-	InterestingInput = lists:nth(Index+1, Tx#btxdef.txinputs),
-	Tx#btxdef{txoutputs = [],
-			  txinputs = lists:map(fun(I) when I =:= InterestingInput ->
-				  							   InterestingInput#btxin{script = SubScript};
-			  						  (I2) -> I2#btxin{seqnum = 0, script = <<>>}
-								   end, Tx#btxdef.txinputs)};
+dhash(X) when is_integer(X) -> dhash(ser(X));
+dhash(X) -> crypto:hash(sha256, crypto:hash(sha256, X)).
 
-prepare_tx(Tx, Index, SubScript, ?SIGHASH_SINGLE) ->
-	SubList = lists:sublist(Tx#btxdef.txoutputs, 1, Index),
-	CurrentOutput = lists:nth(Index+1, Tx#btxdef.txoutputs),
-	InterestingInput = lists:nth(Index+1, Tx#btxdef.txinputs),
-	Tx#btxdef{txoutputs = lists:map(fun(O) ->
-											O#btxout{value = -1,
-													 script = <<>>}
-									end, SubList) ++ [CurrentOutput],
-	  txinputs = lists:map(fun(I) when I =:= InterestingInput ->
-				  							   InterestingInput#btxin{script = SubScript};
-			  						  (I2) -> I2#btxin{seqnum = 0, script = <<>>}
-								   end, Tx#btxdef.txinputs)};
+ripemd160(X) when is_integer(X) -> ripemd160(ser(X));
+ripemd160(X) -> crypto:hash(ripemd160, X).
 
+sha(X) when is_integer(X) -> sha(ser(X));
+sha(X) -> crypto:hash(sha, X).
 
+sha256(X) when is_integer(X) -> sha256(ser(X));
+sha256(X) -> crypto:hash(sha256, X).
 
-prepare_tx(Tx, Index, SubScript, X) ->
-	?debugFmt("UNHANDLED TX SIGHASHTYPE ~p~n", [X]),
-	prepare_tx(Tx, Index, SubScript, ?SIGHASH_ALL).
+%% Custom Integer Serialization for Scripts...
 
+ser(0) -> <<>>;
+ser(X) when X > 0, X < 256 -> <<X:8>>;
+ser(X) when X < 0 -> <<(X bxor 16#80):8>>;
+ser(X) -> ser(abs(X), X < 0, <<>>).
+ser(X, Neg, Vec) when X > 0 ->
+	ser(X bsr 8, Neg, <<Vec/binary, (X band 16#ff):8>>);
+ser(_, Neg, Vec) ->
+	%% Final check
+	S = size(Vec),
+	<<_:S/binary, Last:8>> = Vec,
+	ser_final(Last band 16#80, Neg, Vec).
 
+ser_final(Last, true, Vec) when Last > 0 ->
+	<<Vec/binary, 16#80:8>>;
+ser_final(Last, false, Vec) when Last > 0 ->
+	<<Vec/binary, 0:8>>;
+ser_final(Last, true, Vec) ->
+	S = size(Vec),
+	<<Front:S/binary, _:8>> = Vec,
+	<<Front/binary, (Last bor 16#80):8>>;
+ser_final(_, _, Vec) -> Vec.
 
-anyonecanpay(0, Tx2, _) -> Tx2;
-anyonecanpay(_, Tx2, Index) ->
-	Tx2#btxdef{txinputs = [lists:nth(Index+1, Tx2#btxdef.txinputs)]}.
+setvch(<<>>) -> 0;
+setvch(X) -> setvch(X, 0, 0).
+
+setvch(<<>>, _Index, Result) ->  Result;
+setvch(<<16#80:8>>, _Index, Result) -> -Result;
+setvch(<<X:8, R/binary>>, Index, Result) ->
+	?debugFmt("Index, ~p Result ~p, R ~p, X ~p ~n", [Index, Result, R, X]),
+	setvch(R, Index+1, Result bxor (X bsl (8*Index))).
 
 %% UTILITY
 
