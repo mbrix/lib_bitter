@@ -80,19 +80,23 @@ parse_tx(TxData) ->
 	T.
 
 extractLoop(Data, StartOffset) ->
-	case extract(Data) of
-		{ok, Block2, TxOffsets, Next} ->
-		    BlockSize = byte_size(Data) - byte_size(Next),
-		    NewTxOffsets = adjust_offsets(TxOffsets, StartOffset),
-            {continue, Block2,
-             {StartOffset, BlockSize}, NewTxOffsets,
-             fun() -> extractLoop(Next, StartOffset+BlockSize) end};
-		{scan, Next} ->
-			<<_:8, Bin/binary>> = Next,
-			extractLoop(Bin, StartOffset+1);
-		ok -> 
-		    erlang:garbage_collect(self()),
-		    done
+	try
+	    case extract(Data) of
+	    	{ok, Block2, TxOffsets, Next} ->
+	    	    BlockSize = byte_size(Data) - byte_size(Next),
+	    	    NewTxOffsets = adjust_offsets(TxOffsets, StartOffset),
+                {continue, Block2,
+                 {StartOffset, BlockSize}, NewTxOffsets,
+                 fun() -> extractLoop(Next, StartOffset+BlockSize) end};
+	    	{scan, Next} ->
+	    		<<_:8, Bin/binary>> = Next,
+	    		extractLoop(Bin, StartOffset+1);
+	    	ok -> 
+	    	    erlang:garbage_collect(self()),
+	    	    done
+	    end
+	catch
+		_:_ -> done
 	end.
 
 adjust_offsets(TxOffsets, Adjustment) ->
@@ -287,7 +291,7 @@ getTransactions(TXCount, Tbin, Acc, Offsets, StartOffset) ->
 				[{TransactionHash, StartOffset, TXLength}|Offsets],
 				StartOffset + TXLength).
 
-extract(<< >>) -> ok;
+extract(<<>>) -> ok;
 extract(<<MagicByte:32/little, 
     HeaderLength:32/little,
     VersionNumber:32/little, 
