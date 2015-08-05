@@ -28,7 +28,9 @@
 -module(lib_block).
 -author('mbranton@emberfinancial.com').
 
--export([header/1,
+-export([addresses/1,
+		 colors/1,
+		 header/1,
          to_json/1,
          to_map/1,
          blockhash/1,
@@ -40,7 +42,9 @@
          color_serialize/1,
          color_tx_serialize/1,
          apply_color/2,
-         recolor_outputs/2]).
+         recolor_outputs/2,
+         trim_tx/2,
+         match_txs/2]).
 
 -include_lib("bitter.hrl").
 -include_lib("eunit/include/eunit.hrl").
@@ -49,6 +53,25 @@
 -define(ATOM,      1).
 -define(BINARY,    2).
 
+
+
+%% Unique addresses in block
+addresses(Block) -> addresses(tx, Block#bbdef.txdata, #{}).
+addresses(tx, [], Addresses) -> maps:keys(Addresses);
+addresses(tx, [Tx|T], Addresses) ->
+	addresses(tx, T, addresses(outputs, Tx#btxdef.txoutputs, Addresses));
+addresses(outputs, [], Addresses) -> Addresses;
+addresses(outputs, [O|T], Addresses) ->
+	addresses(outputs, T, maps:put(lib_address:readable(O), 0, Addresses)).
+
+%% Unique colors in block
+colors(Block) -> colors(tx, Block#bbdef.txdata, #{}).
+colors(tx, [], Colors) -> maps:keys(Colors);
+colors(tx, [Tx|T], Colors) ->
+	colors(tx, T, colors(outputs, Tx#btxdef.txoutputs, Colors));
+colors(outputs, [], Colors) -> Colors;
+colors(outputs, [O|T], Colors) ->
+	colors(outputs, T, maps:put(lib_color:readable(O#btxout.color), 0, Colors)).
 
 readable_hash(binary, Hash) ->
 	iolist_to_binary(readable_hash(Hash)).
@@ -241,4 +264,22 @@ next_color_quant(<<?BINARY:8, Rest/binary>>) ->
 next_color_quant(_) ->
     throw(color_deserialize_error).
 
+trim_tx(Block, Hash) ->
+	trim_txdata(Block#bbdef.txdata, Hash).
 
+trim_txdata(TxData, Hash) -> trim_txdata(TxData, Hash, false).
+
+trim_txdata([], _, _) -> [];
+trim_txdata([#btxdef{txhash=Hash}|T], Hash, false) -> trim_txdata(T, Hash, true);
+trim_txdata([_|T], Hash, false) -> trim_txdata(T, Hash, false);
+trim_txdata(Txdata, _, true) -> Txdata. 
+
+match_txs(#bbdef{txdata=Txdata}, MatchFun) ->
+	match_txs(Txdata, MatchFun);
+match_txs(Txdata, MatchFun) -> match_txs(Txdata, MatchFun, []).
+
+match_txs([], _MatchFun, Acc) -> lists:reverse(Acc);
+match_txs([Tx|T], MatchFun, Acc) -> match_txs(T, MatchFun, MatchFun(Tx, Acc)).
+
+
+%% Bip-0037 approximate bloom matching.
