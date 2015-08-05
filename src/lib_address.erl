@@ -181,7 +181,11 @@ readable(Addr) when is_list(Addr) ->
 
 readable(Unspent) when is_record(Unspent, utxop) ->
     A = new(Unspent#utxop.script),
-    readable(A).
+    readable(A);
+
+readable(Output) when is_record(Output, btxout) ->
+	A = new(Output#btxout.script),
+	readable(A).
 
 openassets(binary, Addr) ->
 	string_to_bin(openassets(Addr)).
