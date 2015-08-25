@@ -32,9 +32,14 @@
          filter_by_confirmations/4,
          filter_by_value/2,
          filter_by_quantity/2,
-         filter_by_color/2]).
+         filter_by_color/2,
+         readable/1]).
 
 -include_lib("lib_bitter/include/bitter.hrl").
+
+readable(Unspent) -> 
+	{H,I} = Unspent#utxop.hash_index,
+	io_lib:format("~p ~p", [lib_tx:readable_txhash(H), I]).
 
 to_json(UnspentList, Height) when is_list(UnspentList) ->
     lists:map(fun(E) ->
