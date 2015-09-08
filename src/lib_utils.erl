@@ -30,7 +30,8 @@
 -module(lib_utils).
 -author('mbranton@emberfinancial.com').
 
--export([block/1,
+-export([stat/0,
+		 block/1,
 		 metablock/1,
 		 info/1]).
 
@@ -57,4 +58,19 @@ info(B) when is_record(B, bbdef) ->
 info(Criteria) -> info(block(Criteria)).
 
 	
+%% System status
+stat() ->
+	merge_maps([{utxo, bitter_utxo:info()},
+				{mempool, bitter_mempool:info()},
+				{chain, bitter_chaind:info(near)},
+				{disk, bitter_diskloader:status()}]).
 
+merge_maps(Maps) -> merge_maps(Maps, #{}).
+merge_maps([], Maps) -> Maps;
+merge_maps([{System, H}|T], Maps) -> merge_maps(T, maps:put(System, convert_hashes(H), Maps)).
+
+convert_hashes(M) when is_map(M) -> maps:map(fun(_K,V) -> convert_hashes(V) end, M);
+convert_hashes(M) when is_tuple(M) -> convert_hashes(tuple_to_list(M));
+convert_hashes(M) when is_list(M) -> lists:map(fun(E) -> convert_hashes(E) end, M);
+convert_hashes(M) when is_binary(M), size(M) =:= 32 -> lib_tx:readable_txhash(M);
+convert_hashes(M) -> M.
