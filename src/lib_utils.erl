@@ -33,7 +33,9 @@
 -export([stat/0,
 		 block/1,
 		 metablock/1,
-		 info/1]).
+		 info/1,
+		 bloom/1,
+		 bloom/2]).
 
 -include_lib("bitter.hrl").
 
@@ -74,3 +76,10 @@ convert_hashes(M) when is_tuple(M) -> convert_hashes(tuple_to_list(M));
 convert_hashes(M) when is_list(M) -> lists:map(fun(E) -> convert_hashes(E) end, M);
 convert_hashes(M) when is_binary(M), size(M) =:= 32 -> lib_tx:readable_txhash(M);
 convert_hashes(M) -> M.
+
+%% Messing with bloom filter creation
+%% Not a realistic filter, but good for false positive testing
+bloom(Thing) -> bloom(Thing, bloom:new(10000, 0.0000001)).
+
+bloom(Address, BloomFilter) when is_record(Address, addr) -> bloom(Address#addr.bin, BloomFilter);
+bloom(Bin, BloomFilter) -> bloom:add_element(Bin, BloomFilter).
