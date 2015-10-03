@@ -34,8 +34,10 @@
 		 block/1,
 		 metablock/1,
 		 info/1,
+		 convert_hash/1,
 		 bloom/1,
-		 bloom/2]).
+		 bloom/2,
+		 block_directory/1]).
 
 -include_lib("bitter.hrl").
 
@@ -59,6 +61,7 @@ info(B) when is_record(B, bbdef) ->
 	  txcount => length(B#bbdef.txdata)};
 info(Criteria) -> info(block(Criteria)).
 
+convert_hash(Hexstr) -> hex:bin_reverse(hex:hexstr_to_bin(Hexstr)).
 	
 %% System status
 stat() ->
@@ -83,3 +86,13 @@ bloom(Thing) -> bloom(Thing, bloom:new(10000, 0.0000001)).
 
 bloom(Address, BloomFilter) when is_record(Address, addr) -> bloom(Address#addr.bin, BloomFilter);
 bloom(Bin, BloomFilter) -> bloom:add_element(Bin, BloomFilter).
+
+block_directory(auto) ->
+	{ok, [[HomeDir]]} = init:get_argument(home),
+	block_directory(HomeDir ++ "/.bitcoin/blocks/");
+block_directory(Directory) ->
+	case filelib:is_file(Directory ++ "blk00000.dat") of
+		true -> Directory;
+		false -> throw(missing_bitcoin_block_dir)
+	end.
+

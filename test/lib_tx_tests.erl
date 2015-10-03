@@ -247,10 +247,7 @@ open_assets() ->
 	Tx = lib_parse:parse_tx(RawTx),
 	RawTx2 = lib_tx:serialize(Tx),
 	Tx3 = lib_parse:parse_tx(RawTx2),
-	?assertEqual(Tx, Tx3),
-	[_,O,_] = Tx3#btxdef.txoutputs,
-	?debugFmt("~p~n", [lib_parse:parse_script(O#btxout.script)]).
-
+	?assertEqual(Tx, Tx3).
 
 tx_test_() -> 
   {foreach,

@@ -907,7 +907,8 @@ bad_type_color() ->
         <<"Collectible">>,0,false,
         <<"https://coinprism.blob.core.windows.net/profile/icon/3MWCMBTsF3tNzuK3WmvRfpsTVkEZxBmyFQ.jpg">>,
         <<"https://coinprism.blob.core.windows.net/profile/image/3MWCMBTsF3tNzuK3WmvRfpsTVkEZxBmyFQ.jpg">>,
-        <<"1.0">>},
+        <<"1.0">>,
+        true},
     B = #color{bin = <<162,242,229,197,141,84,159,165,66,12,
           127,192,204,5,49,139,47,255,59,251>>},
     ?assertEqual(A#color.bin, B#color.bin).
