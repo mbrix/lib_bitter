@@ -110,9 +110,7 @@ calculate_fee(Tx) ->
 intermediate_tx(SigHashType, Tx) ->
 	erlang:iolist_to_binary([serialize_btxdef(Tx), <<SigHashType:32/little>>]).
 
-sign_tx(SigHashType, Tx,
-		KeypairDict, Proposals,
-		Unspents) ->
+sign_tx(SigHashType, Tx, KeypairDict, Proposals, Unspents) ->
 	SignedInputs = sign_inputs(SigHashType, Tx#btxdef.txinputs, Tx, KeypairDict, Proposals, Unspents),
 	Tx#btxdef{txinputs=SignedInputs}.
 

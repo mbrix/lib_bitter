@@ -170,7 +170,7 @@ create_random_input() ->
 	create_input(crypto:rand_bytes(32), random:uniform(100)).
 
 create_input(Addr) when is_record(Addr, addr) ->
-	I = create_random_input(),
+	I = create_random_p2pkh_input(),
 	{#utxop{hash_index={I#btxin.txhash, I#btxin.txindex},
 			script = lib_address:script(Addr)},
 	I}.
