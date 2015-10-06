@@ -28,6 +28,7 @@
 -author('mbranton@emberfinancial.com').
 
 -export([find/2,
+		 connect/1,
          connect_nodes/1,
          get_best_pid/1,
          near/1,
@@ -44,6 +45,9 @@
          goodbye/0]).
 
 %%% Connect functions
+
+connect(Module) ->
+	connect_nodes(application:get_env(Module, nodes, undefined)).
 
 connect_nodes(undefined) -> ok;
 connect_nodes(N) when is_atom(N) -> connect_node(N);
