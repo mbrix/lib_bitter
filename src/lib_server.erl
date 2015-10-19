@@ -32,25 +32,36 @@
 
 -export([hibernation_on/1,
 		 hibernation_on/2,
+		 hibernation_on/3,
 		 hibernate/2,
 		 hibernate/3]).
 
 -define(GCTHRESH, 500).
 
 hibernation_on(S) -> hibernation_on(S, ?GCTHRESH). 
+hibernation_on(S, Fun) when is_function(Fun) -> hibernation_on(S, Fun, ?GCTHRESH);
 hibernation_on(S, Threshold) -> S#{gcthresh => Threshold, processed => 1}.
+
+hibernation_on(S, Fun, Threshold) -> S#{gcthresh => Threshold, processed => 1, hibernate_fun => Fun}.
 
 hibernate(reply, Response, #{gcthresh := GCThresh, processed := P} = S) when P > 0 ->
 	hibernate(reply, Response, P rem GCThresh, S);
 hibernate(reply, Response, #{processed := P} = S) -> {reply, Response, S#{processed => P+1}};
 
-hibernate(noreply, 0, S) -> {noreply, S#{processed => 1}, hibernate};
+hibernate(noreply, 0, S) -> 
+	hibernate_fun(S),
+	{noreply, S#{processed => 1}, hibernate};
 hibernate(noreply, _, #{processed := P} = S) -> {noreply, S#{processed => P+1}}.
 
-hibernate(reply, Response, 0, S) -> {reply, Response, S#{processed => 1}, hibernate};
+hibernate(reply, Response, 0, S) ->
+	hibernate_fun(S),
+	{reply, Response, S#{processed => 1}, hibernate};
 hibernate(reply, Response, _, #{processed := P} = S) -> {reply, Response, S#{processed => P+1}}.
 
 hibernate(noreply, #{gcthresh := GCThresh, processed := P} = S) when P > 0 ->
 	hibernate(noreply, P rem GCThresh, S);
 hibernate(noreply, #{processed := P} = S) -> {noreply, S#{processed => P+1}}.
 
+
+hibernate_fun(#{hibernate_fun := HF}) -> HF();
+hibernate_fun(_) -> ok.
