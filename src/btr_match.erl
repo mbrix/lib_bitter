@@ -24,6 +24,8 @@
 % SELL ANYTHING THAT IT  MAY DESCRIBE, IN WHOLE OR IN PART.                
 %
 
+%% Matching functions
+
 -module(btr_match).
 -author('mbranton@emberfinancial.com').
 
@@ -32,15 +34,80 @@
 		 false_fun/0,
 		 false_fun/1,
 		 bloom_fun/1,
-		 bloom_fun/2]).
+		 bloom_fun/2,
+		 match_helper/1,
+		 confirmed/1,
+		 unconfirmed/1,
+		 color_fun/1,
+		 depth_fun/2,
+		 random_fun/1,
+		 coinbase_fun/1,
+		 run_fundefs/2]).
 
 -include_lib("bitter.hrl").
 
-true_fun() -> fun(X) -> true_fun(X) end.
+
+run_fundefs(Defs, Datum) ->
+	try
+		run_fundefs_do(Defs, Datum)
+	catch _:_ -> false
+	end.
+
+run_fundefs_do(F, Datum) when is_function(F) -> F(Datum);
+
+run_fundefs_do([], _) -> false;
+run_fundefs_do([D|T], Datum) ->
+	case D(Datum) of
+		true -> true;
+		false -> run_fundefs(T, Datum)
+	end.
+
+match_helper({bloom, BloomFilter}) -> bloom_fun(BloomFilter);
+match_helper({color, Color}) -> color_fun(Color);
+match_helper(true) -> fun true_fun/1;
+match_helper(false) -> fun false_fun/1;
+match_helper(F) -> F.
+
+true_fun() ->  fun true_fun/1.
 false_fun() -> fun(X) -> false_fun(X) end.
 
 true_fun(_) -> true.
 false_fun(_) -> false.
+
+confirmed(#utxop{state = ?Spent_Unconfirmed}) -> false;
+confirmed(#utxop{state = ?Unspent_Unconfirmed}) -> false;
+confirmed(#utxop{}) -> true;
+confirmed(_) -> false.
+
+unconfirmed(#utxop{state = ?Unspent_Unconfirmed}) -> true;
+unconfirmed(#utxop{}) -> false;
+unconfirmed(_) -> false.
+
+color_fun(Color) ->
+	fun(U) ->
+			case (U#utxop.color) of
+				Color -> true;
+				_ -> false
+			end
+	end.
+
+depth_fun(-1, _Height) -> fun unconfirmed/1;
+depth_fun(Depth, Height) ->
+	fun(#utxop{height = H}) when Height-Depth >= H -> true;
+	   (_) -> false
+	end.
+
+coinbase_fun(Height) ->
+	fun(#utxop{coinbase = false}) -> true;
+	   (#utxop{coinbase = true, height = H}) when H >= Height-50 -> true;
+	   (_) -> false
+	end.
+
+random_fun(Thresh) ->
+	X = random:uniform(),
+	fun (_) when X > Thresh -> true;
+		(_) -> false
+	end.
 
 bloom_fun(BloomFilter) -> bloom_fun(BloomFilter, all).
 
@@ -56,11 +123,14 @@ bloom_fun(BloomFilter, FieldList) ->
 	end.
 
 check_fields(BloomFilter, Datum, _) when is_record(Datum, btxout) ->
-	bitter_bloom:contains(BloomFilter, Datum#btxout.address); 
+	false = (bitter_bloom:contains(BloomFilter, Datum#btxout.address) or
+	bitter_bloom:contains(BloomFilter, Datum#btxout.script));
 check_fields(BloomFilter, Datum, _) when is_record(Datum, btxin) ->
-	bitter_bloom:contains(BloomFilter, Datum#btxin.txhash);
+	false = (bitter_bloom:contains(BloomFilter, Datum#btxin.txhash) or
+	bitter_bloom:contains(BloomFilter, Datum#btxin.script));
 check_fields(BloomFilter, Datum, _) when is_record(Datum, utxop) ->
-	bitter_bloom:contains(BloomFilter, Datum#utxop.address);
+	false = (bitter_bloom:contains(BloomFilter, Datum#utxop.address) or
+	bitter_bloom:contains(BloomFilter, Datum#utxop.script));
 
 %% Selective Bloom Filter Checking on TX inputs and Outputs
 check_fields(_BloomFilter, _Tx, []) -> ok;

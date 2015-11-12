@@ -27,7 +27,7 @@
 -module(lib_unspent).
 -author('mbranton@emberfinancial.com').
 
--export([to_json/2,
+-export([to_map/2,
 		 is_coinbase/1,
          filter_by_confirmations/4,
          filter_by_value/2,
@@ -41,7 +41,7 @@ readable(Unspent) ->
 	{H,I} = Unspent#utxop.hash_index,
 	io_lib:format("~p ~p", [lib_tx:readable_txhash(H), I]).
 
-to_json(UnspentList, Height) when is_list(UnspentList) ->
+to_map(UnspentList, Height) when is_list(UnspentList) ->
     lists:map(fun(E) ->
                 {Hash, Index} = E#utxop.hash_index,
                 AddressRecord = lib_address:new(E#utxop.script),

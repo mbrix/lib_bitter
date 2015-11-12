@@ -168,11 +168,12 @@ readable(binary, Addr) ->
 	string_to_bin(readable(Addr)).
 
 readable(Addr) when is_record(Addr, addr) ->
-	case Addr#addr.type of
-		p2pkh ->
-			hash160_to_address(Addr#addr.bin);
-		p2sh ->
-			p2sh_hash160_to_address(Addr#addr.bin)
+	try
+		case Addr#addr.type of
+			p2sh -> p2sh_hash160_to_address(Addr#addr.bin);
+			_ -> hash160_to_address(Addr#addr.bin)
+		end
+	catch _:_ -> "unsupported"
 	end;
 
 readable(Addr) when is_list(Addr) ->
