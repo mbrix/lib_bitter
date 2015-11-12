@@ -56,6 +56,7 @@ to_map(UnspentList, Height) when is_list(UnspentList) ->
                   scriptPubKey => ScriptPubKey,
                   amount => lib_transact:satoshi_to_btc(E#utxop.value),
                   confirmations => Confirmations,
+                  height => Height,
                   color => Color,
                   quantity => E#utxop.quantity}
         end, UnspentList).
