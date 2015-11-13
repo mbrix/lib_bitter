@@ -33,6 +33,7 @@
 
 
 start() ->
+	btr_net_params:init(main),
 	ok.
 
 stop(_) ->
@@ -51,7 +52,8 @@ public_to_address() ->
 	Public = hex:hexstr_to_bin("0450863AD64A87AE8A2FE83C1AF1A8403CB53F53E486D8511DAD8A04887E5B23522CD470243453A299FA9E77237716103ABC11A1DF38855ED6F2EE187E9C582BA6"),
 	% Uncompressed Public key is compressed before turning into address.
 	CorrectAddress = "1PMycacnJaSqwwJqjawXBErnLsZ7RkXUAs",
-	Address = lib_address:public_to_address(Public),
+	Address = lib_address:public_to_address(btr_net_params:params(),
+											Public),
 	?assertEqual(CorrectAddress, Address).
 
 address_type() ->
@@ -82,8 +84,8 @@ new_addresses() ->
 	A2 = lib_address:new(A2_readable),
 	?assertEqual(p2pkh, A#addr.type),
 	?assertEqual(p2sh, A2#addr.type),
-	?assertEqual(A_readable, lib_address:readable(A)),
-	?assertEqual(A2_readable, lib_address:readable(A2)).
+	?assertEqual(A_readable, lib_address:readable(btr_net_params:params(), A)),
+	?assertEqual(A2_readable, lib_address:readable(btr_net_params:params(), A2)).
 
 verify_keypair() ->
 	{Pub, Priv} = lib_address:generate_keypair(),
@@ -119,11 +121,13 @@ openasset_address() ->
     Address = "16UwLL9Risc3QfPqBUvKofHmBQ7wMtjvM",
     OpenAssetsAddress = "akB4NBW9UuCmHuepksob6yfZs6naHtRCPNy",
     A = lib_address:new(Address),
-    ?assertEqual(OpenAssetsAddress, lib_address:openassets(A)).
+    ?assertEqual(OpenAssetsAddress, lib_address:openassets(btr_net_params:params(),
+    													   A)).
 
 openasset_new() ->
     Address = lib_address:new("akB4NBW9UuCmHuepksob6yfZs6naHtRCPNy"),
-    ?assertEqual("16UwLL9Risc3QfPqBUvKofHmBQ7wMtjvM", lib_address:readable(Address)).
+    ?assertEqual("16UwLL9Risc3QfPqBUvKofHmBQ7wMtjvM", lib_address:readable(btr_net_params:params(),
+    																	   Address)).
 
 failed_checksum() ->
     Address = "16UwLL9Risc3QfPqBUvKofHmBQ7wMtjvm",
@@ -139,9 +143,12 @@ color_identifier() ->
 
 is_openassets() ->
     ColorAddress = "akB4NBW9UuCmHuepksob6yfZs6naHtRCPNy",
-    ?assertEqual(true,  lib_address:is_openassets(ColorAddress)),
-    ?assertEqual(false, lib_address:is_openassets("blah")),
-    ?assertEqual(false, lib_address:is_openassets("16UwLL9Risc3QfPqBUvKofHmBQ7wMtjvM")).
+    ?assertEqual(true,  lib_address:is_openassets(btr_net_params:params(),
+    											  ColorAddress)),
+    ?assertEqual(false, lib_address:is_openassets(btr_net_params:params(),
+    											  "blah")),
+    ?assertEqual(false, lib_address:is_openassets(btr_net_params:params(),
+    											  "16UwLL9Risc3QfPqBUvKofHmBQ7wMtjvM")).
 
 address_test_() -> 
   {foreach,

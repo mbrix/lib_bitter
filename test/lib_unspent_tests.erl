@@ -32,6 +32,7 @@
 -include_lib("eunit/include/eunit.hrl").
 
 start() ->
+	btr_net_params:init(main),
 	ok.
 
 stop(_) ->

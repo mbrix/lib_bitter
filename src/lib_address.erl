@@ -27,10 +27,10 @@
 -module(lib_address).
 -author('mbranton@emberfinancial.com').
 
--export([hash160_to_address/1,
+-export([hash160_to_address/2,
 	     address_type/1,
-	     p2sh_script_to_address/1,
-	     p2sh_hash160_to_address/1,
+	     p2sh_script_to_address/2,
+	     p2sh_hash160_to_address/2,
 		 address_to_hash160/1,
 	     script_to_address/2,
 	     info_addresses/2,
@@ -40,16 +40,16 @@
 	     wif_to_private/1,
 	     compress_key/1,
 	     key_to_hash160/1,
-	     public_to_address/1,
+	     public_to_address/2,
 	     public_to_hash160/1,
 	     generate_p2sh_address/1,
 	     p2sh_redeemscript/1,
 		 p2sh_redeemscript_hash/1,
 	     script_to_hash160/1,
 	     verify_keypair/2,
-	     openassets/1,
 	     openassets/2,
-	     is_openassets/1,
+	     openassets/3,
+	     is_openassets/2,
 	     checksum/1,
 	     checksum/2,
 	     base58_check/2,
@@ -66,8 +66,8 @@
 	     type/1,
 	     hash160/1,
 	     script/1,
-	     readable/1,
 	     readable/2,
+	     readable/3,
 	     issue_color/1]).
 
 -include_lib("bitter.hrl").
@@ -164,53 +164,53 @@ string_to_bin(S) when is_atom(S) -> S;
 string_to_bin(S) when is_list(S) -> erlang:list_to_binary(S);
 string_to_bin(S) -> S.
 
-readable(binary, Addr) ->
-	string_to_bin(readable(Addr)).
+readable(binary, NetworkParams, Addr) ->
+	string_to_bin(readable(NetworkParams, Addr)).
 
-readable(Addr) when is_record(Addr, addr) ->
+readable(NetworkParams, Addr) when is_record(Addr, addr) ->
 	try
 		case Addr#addr.type of
-			p2sh -> p2sh_hash160_to_address(Addr#addr.bin);
-			_ -> hash160_to_address(Addr#addr.bin)
+			p2sh -> p2sh_hash160_to_address(NetworkParams, Addr#addr.bin);
+			_ -> hash160_to_address(NetworkParams, Addr#addr.bin)
 		end
 	catch _:_ -> "unsupported"
 	end;
 
-readable(Addr) when is_list(Addr) ->
+readable(NetworkParams, Addr) when is_list(Addr) ->
     A = new(Addr),
-	readable(A);
+	readable(NetworkParams, A);
 
-readable(Unspent) when is_record(Unspent, utxop) ->
+readable(NetworkParams, Unspent) when is_record(Unspent, utxop) ->
     A = new(Unspent#utxop.script),
-    readable(A);
+    readable(NetworkParams, A);
 
-readable(Output) when is_record(Output, btxout) ->
+readable(NetworkParams, Output) when is_record(Output, btxout) ->
 	A = new(Output#btxout.script),
-	readable(A).
+	readable(NetworkParams, A).
 
-openassets(binary, Addr) ->
-	string_to_bin(openassets(Addr)).
+openassets(binary, NetworkParams, Addr) ->
+	string_to_bin(openassets(NetworkParams, Addr)).
 
-openassets(Addr) when is_record(Addr, addr) ->
+openassets(NetworkParams, Addr) when is_record(Addr, addr) ->
     case Addr#addr.type of
         p2pkh ->
-            hash160_to_openassets(Addr#addr.bin);
+            hash160_to_openassets(NetworkParams, Addr#addr.bin);
         p2sh ->
-            p2sh_hash160_to_openassets(Addr#addr.bin)
+            p2sh_hash160_to_openassets(NetworkParams, Addr#addr.bin)
     end;
 
-openassets(Addr) when is_list(Addr) ->
+openassets(NetworkParams, Addr) when is_list(Addr) ->
     A = new(Addr),
-    openassets(A);
+    openassets(NetworkParams, A);
 
-openassets(Unspent) when is_record(Unspent, utxop) ->
+openassets(NetworkParams, Unspent) when is_record(Unspent, utxop) ->
     A = new(Unspent#utxop.script),
-    openassets(A).
+    openassets(NetworkParams, A).
 
-is_openassets(Address) when is_list(Address) ->
+is_openassets(NetworkParams, Address) when is_list(Address) ->
 	try
 		A = lib_address:new(Address),
-		openassets(A) =:= Address
+		openassets(NetworkParams, A) =:= Address
 	catch
 		throw:address_error -> false
 	end.
@@ -273,20 +273,20 @@ checksum(Address) ->
     <<Checksum:32/bitstring, _/binary>> = crypto:hash(sha256, crypto:hash(sha256, hex:bin_reverse(R))),
     Checksum =:= hex:bin_reverse(ChecksumR).
 
-hash160_to_address(Script) when is_binary(Script) ->
-	base58_check(<<0:8>>, Script).
+hash160_to_address(NetworkParams, Script) when is_binary(Script) ->
+	base58_check(maps:get(p2pkh_checkbyte, NetworkParams), Script).
 
-p2sh_hash160_to_address(Script) when is_binary(Script) ->
-	base58_check(<<5:8>>, Script).
+p2sh_hash160_to_address(NetworkParams, Script) when is_binary(Script) ->
+	base58_check(maps:get(p2sh_checkbyte, NetworkParams), Script).
 
-hash160_to_openassets(Script) when is_binary(Script) ->
-    base58_check([<<19:8>>, <<0:8>>], Script).
+hash160_to_openassets(NetworkParams, Script) when is_binary(Script) ->
+    base58_check([maps:get(oa_checkbyte, NetworkParams), <<0:8>>], Script).
 
-p2sh_hash160_to_openassets(Script) when is_binary(Script) ->
-    base58_check([<<19:8>>, <<5:8>>], Script).
+p2sh_hash160_to_openassets(NetworkParams, Script) when is_binary(Script) ->
+    base58_check([maps:get(oa_checkbyte, NetworkParams), <<5:8>>], Script).
 
-p2sh_script_to_address(Script) ->
-	p2sh_hash160_to_address(script_to_hash160(Script)).
+p2sh_script_to_address(NetworkParams, Script) ->
+	p2sh_hash160_to_address(NetworkParams, script_to_hash160(Script)).
 
 script_to_hash160(Script) ->
 	crypto:hash(ripemd160, crypto:hash(sha256, Script)).
@@ -373,9 +373,9 @@ wif_to_private(uncompressed, PrivateKey) ->
 
 
 % Generated Compressed Public Key Addresses
-public_to_address(Public) ->
+public_to_address(NetworkParams, Public) ->
 	Hash160 = key_to_hash160(compress_key(Public)),
-	hash160_to_address(Hash160).
+	hash160_to_address(NetworkParams, Hash160).
 
 public_to_hash160(Public) ->
 	key_to_hash160(compress_key(Public)).

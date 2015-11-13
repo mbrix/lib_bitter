@@ -27,7 +27,8 @@
 -module(lib_unspent).
 -author('mbranton@emberfinancial.com').
 
--export([to_map/2,
+-export([to_json/2,
+		 to_map/2,
 		 is_coinbase/1,
          filter_by_confirmations/4,
          filter_by_value/2,
@@ -41,14 +42,17 @@ readable(Unspent) ->
 	{H,I} = Unspent#utxop.hash_index,
 	io_lib:format("~p ~p", [lib_tx:readable_txhash(H), I]).
 
+to_json(UnspentList, Height) -> jiffy:encode(to_map(UnspentList, Height)).
+
 to_map(UnspentList, Height) when is_list(UnspentList) ->
     lists:map(fun(E) ->
                 {Hash, Index} = E#utxop.hash_index,
                 AddressRecord = lib_address:new(E#utxop.script),
                 TxHash = iolist_to_binary(hex:bin_to_hexstr(hex:bin_reverse(Hash))),
-                Address = iolist_to_binary(lib_address:readable(AddressRecord)),
+                Address = lib_address:readable(binary, btr_net_params:params(),
+                												AddressRecord),
                 ScriptPubKey = iolist_to_binary(hex:bin_to_hexstr(E#utxop.script)),
-                Color = to_readable(lib_color:readable(E#utxop.color)),
+                Color = to_readable(lib_color:readable(binary, E#utxop.color)),
                 Confirmations = Height - E#utxop.height,
                 #{txid => TxHash,
                   vout => Index,

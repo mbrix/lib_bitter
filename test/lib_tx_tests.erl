@@ -33,6 +33,7 @@
 
 
 start() ->
+	btr_net_params:init(main),
 	ok.
 
 stop(_) ->
@@ -154,10 +155,12 @@ create_p2sh_to_p2pkh_transaction() ->
 	CorrectRedeemScript = hex:hexstr_to_bin("5221026664b99eaf9937007ecf483c7bdc970324216a17a4eca0d8374aa8c3d6bffa082103c486f18379d40b396ce2b0f6e79a3a2b17af36e838017bdd330e821c6030788d52ae"),
 	?assertEqual(CorrectRedeemScript, lib_address:p2sh_redeemscript(PublicKeyList)),
 	?assertEqual("345KTgMSLhvtugSV7jxY3LpFt5KPj6eK99",
-		lib_address:p2sh_script_to_address(erlang:iolist_to_binary([lib_address:p2sh_redeemscript(PublicKeyList)]))),
+		lib_address:p2sh_script_to_address(btr_net_params:params(),
+										   erlang:iolist_to_binary([lib_address:p2sh_redeemscript(PublicKeyList)]))),
 
 	?assertEqual(hex:hexstr_to_bin("1a280aae9d98b4bff5c9478b276c215caa293ee6"), lib_address:address_to_hash160("345KTgMSLhvtugSV7jxY3LpFt5KPj6eK99")),
-	?assertEqual("345KTgMSLhvtugSV7jxY3LpFt5KPj6eK99", lib_address:p2sh_script_to_address(CorrectRedeemScript)),
+	?assertEqual("345KTgMSLhvtugSV7jxY3LpFt5KPj6eK99", lib_address:p2sh_script_to_address(btr_net_params:params(),
+																						  CorrectRedeemScript)),
 	?assertEqual(lib_address:address_to_hash160("345KTgMSLhvtugSV7jxY3LpFt5KPj6eK99"), lib_address:script_to_hash160(lib_address:p2sh_redeemscript(PublicKeyList))),
     O = lib_tx:create_output(p2pkh,
     		                  ?Uncolored,
