@@ -37,7 +37,7 @@
 		 convert_hash/1,
 		 bloom/1,
 		 bloom/2,
-		 block_directory/1]).
+		 block_directory/2]).
 
 -include_lib("bitter.hrl").
 
@@ -87,10 +87,10 @@ bloom(Thing) -> bloom(Thing, bloom:new(10000, 0.0000001)).
 bloom(Address, BloomFilter) when is_record(Address, addr) -> bloom(Address#addr.bin, BloomFilter);
 bloom(Bin, BloomFilter) -> bloom:add_element(Bin, BloomFilter).
 
-block_directory(auto) ->
+block_directory(NetworkParams, auto) ->
 	{ok, [[HomeDir]]} = init:get_argument(home),
-	block_directory(HomeDir ++ "/.bitcoin/blocks/");
-block_directory(Directory) ->
+	block_directory(NetworkParams, HomeDir ++ maps:get(block_path, NetworkParams));
+block_directory(_, Directory) ->
 	case filelib:is_file(Directory ++ "blk00000.dat") of
 		true -> Directory;
 		false -> throw(missing_bitcoin_block_dir)
