@@ -63,52 +63,54 @@ init(_, _Network, Params) ->
 
 default_params(main = Net) ->
 	#{network => Net,
-	  magicbyte          => ?MAGICBYTE_LIVE,
-	  p2pkh_checkbyte    => 0,
-	  p2sh_checkbyte     => 5,
-	  oa_checkbyte       => 19,
-	  wif                => 128,
+	  magicbyte          => <<?MAGICBYTE_LIVE:32>>,
+	  p2pkh_checkbyte    => <<0:8>>,
+	  p2sh_checkbyte     => <<5:8>>,
+	  oa_checkbyte       => <<19:8>>,
+	  wif                => <<128:8>>,
+	  default_port       => 8333, 
 	  block_path         => "/.bitcoin/blocks/"};
 
 
 default_params(testnet = Net) ->
 	#{network => Net,
-	  magicbyte          => ?MAGICBYTE_TESTNET,
-	  p2pkh_checkbyte    => 111,
-	  p2sh_checkbyte     => 196,
-	  oa_checkbyte       => 19,
-	  wif                => 239,
+	  magicbyte          => <<?MAGICBYTE_TESTNET:32>>,
+	  p2pkh_checkbyte    => <<111:8>>,
+	  p2sh_checkbyte     => <<196:8>>,
+	  oa_checkbyte       => <<19:8>>,
+	  wif                => <<239:8>>,
+	  default_port       => 18333, 
 	  block_path         => "/.bitcoin/testnet/blocks/"};
 
 
 default_params(testnet3 = Net) ->
 	#{network => Net,
-	  magicbyte          => ?MAGICBYTE_TESTNET3,
-	  p2pkh_checkbyte    => 111,
-	  p2sh_checkbyte     => 196,
-	  wif                => 239,
-	  oa_checkbyte       => 19,
+	  magicbyte          => <<?MAGICBYTE_TESTNET3:32>>,
+	  p2pkh_checkbyte    => <<111:8>>,
+	  p2sh_checkbyte     => <<196:8>>,
+	  wif                => <<239:8>>,
+	  oa_checkbyte       => <<19:8>>,
+	  default_port       => 18333, 
 	  block_path         => "/.bitcoin/testnet3/blocks/"}.
 
 ast_syntax_body(NetMap) ->
 	erl_syntax:map_expr( maps:fold(fun(K, V, Acc) when is_integer(V) ->
-						 [erl_syntax:map_field_assoc(erl_syntax:atom(K),
-													erl_syntax:binary([erl_syntax:binary_field(
-																		erl_syntax:integer(V))]))|Acc];
+										   [erl_syntax:map_field_assoc(erl_syntax:atom(K),
+										   							   erl_syntax:integer(V))|Acc];
+									  (K, V, Acc) when is_binary(V) ->
+									  	   [erl_syntax:map_field_assoc(erl_syntax:atom(K),
+													erl_syntax:binary(lists:map(fun(I) ->
+																						erl_syntax:binary_field(erl_syntax:integer(I))
+																				end, binary_to_list(V))))|Acc];
 									 (K, V, Acc) when is_atom(V) ->
 									 	  [erl_syntax:map_field_assoc(erl_syntax:atom(K), erl_syntax:atom(V))|Acc];
 									 (K, V, Acc) when is_list(V) ->
 									 	  [erl_syntax:map_field_assoc(erl_syntax:atom(K), erl_syntax:char(V))|Acc]
 								   end, [], NetMap)).
 
-integer_to_byte(Map) ->
-	maps:fold(fun(K,V,Acc) when is_integer(V) -> maps:put(K, <<V>>, Acc);
-				 (K,V,Acc) -> maps:put(K,V,Acc)
-			  end, #{}, Map).
-
 params() ->  get_params(code:is_loaded(btr_net_prms)).
 
-params(Alternate) -> integer_to_byte(default_params(Alternate)).
+params(Alternate) -> default_params(Alternate).
 
 get_params(false) -> throw(network_params_not_initialized);
 get_params(_)  -> btr_net_prms:params().
