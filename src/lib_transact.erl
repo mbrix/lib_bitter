@@ -41,6 +41,7 @@
 	     payment/0,
 	     payment/1,
 	     finalize/3,
+	     finalize/4,
 	     issue/3,
 	     issue/2,
 	     color_marker/1,
@@ -54,12 +55,14 @@
 	     btc_to_satoshi/1,
 	     btc_to_mbtc/1,
 	     btc_to_ubtc/1,
-	     add_fee/1,
+	     add_fee/2,
+	     basic_fee/1,
 	     spent/2,
 	     included/2,
 	     fee/1,
 	     metaurl/2,
-	     partial_finish/3]).
+	     partial_finish/3,
+	     build_tx/4]).
 
 -include_lib("bitter.hrl").
 -include_lib("eunit/include/eunit.hrl").
@@ -98,6 +101,24 @@ btc_to_mbtc(Btc) when is_number(Btc), Btc >= 0.00000001 ->
 btc_to_ubtc(S) when is_number(S), S < 0.00000001 -> 0;
 btc_to_ubtc(Btc) when is_number(Btc), Btc >= 0.00000001 ->
     erlang:trunc(satoshi_to_ubtc(btc_to_satoshi(Btc))).
+
+% Simple mutli payee tx build
+
+build_tx(Unspents, Payees, ChangeAddress, <<"auto">>) ->
+	build_tx(Unspents, Payees, ChangeAddress, fun basic_fee/1);
+
+build_tx(Unspents, Payees, ChangeAddress, FeeFun) when is_function(FeeFun) ->
+	%% Aggregate unspents to reduce change boundaries
+	Payees2 = lib_color:color_aggregate(Payees),
+	%% Use oldest unspents first
+	SortedUnspents = lib_kd:oldest(Unspents),
+	%% Peek at first color so that we can prime the payment object
+	[{_Address, Color, _Value}|_] = Payees2,
+	%% Build a multi-payment object
+	{Remaining, Payment} = pay(lib_transact:payment(lib_color:new(Color)), Payees2, SortedUnspents),
+	%% Finalize the payment and build a transaction
+	{ok, _, _Payment, Tx} = lib_transact:finalize(Payment, Remaining, ChangeAddress, FeeFun),
+	{ok, Tx}.
 
 % Some functions for manipulating payees
 %
@@ -223,18 +244,22 @@ partial_finish(Payment, Unspents, Change) when is_record(Payment, payment) ->
 
 % Finish and validate a payments object
 % Returns a TX ready for signing
-finalize(Payment, Unspents, Change) when is_record(Payment, payment) ->
+
+finalize(Payment, Unspents, Change) -> finalize(Payment, Unspents, Change, fun basic_fee/1).
+
+finalize(Payment, Unspents, Change, FeeFun) when is_record(Payment, payment) ->
 	P = add_dust(Payment),
 	P2 = finish_color(P, Unspents), %If not uncolored, send back change to last payee
-	P3 = add_fee(P2),
+	P3 = add_fee(P2, FeeFun),
 	{Remaining, P4} = add_change(P3, Unspents, Change),
 	P5 = P4#payment{outputs = lists:reverse(P4#payment.outputs)},
 	P6 = final_check(P5), % Run through payment validation
 	P7 = color_marker(P6),
 	{ok, Remaining, P7, tx(P7)}.
 
-add_fee(P) ->
-	P#payment{fee = lib_tx:calculate_fee(tx(P))}.
+basic_fee(P) -> lib_tx:calculate_fee(tx(P)).
+
+add_fee(P, FeeFun) -> P#payment{fee = FeeFun(P)}.
 
 spent(P, Color) ->
     A = lib_color:new(Color),
@@ -245,7 +270,7 @@ included(P, Color) ->
     value(lib_color:hash160(A), P#payment.outputs).
 
 fee(P) ->
-    P2 = add_fee(P),
+    P2 = add_fee(P, fun basic_fee/1),
     P2#payment.fee.
 
 final_check(P) ->

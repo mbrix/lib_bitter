@@ -97,15 +97,15 @@ height(dict, Dict, Height) ->
                 V#utxop.height =< Height
         end, Dict).
 
-oldest(Dict) ->
+oldest(List) when is_list(List) ->
 	pop_unconfirmed(lists:sort(fun(A, B) ->
-				if
-					A#utxop.height =< B#utxop.height ->
-						true;
-					true ->
-						false
-				end end,
-                            lists:map(fun({_,V}) -> V end, dict:to_list(Dict)))).
+									   if
+									   	   A#utxop.height =< B#utxop.height -> true;
+									   	   true -> false
+									   end end, List));
+
+oldest(Dict) -> oldest(lists:map(fun({_,V}) -> V end, dict:to_list(Dict))).
+
 
 pop_unconfirmed(L) -> pop_unconfirmed(L, []).
 pop_unconfirmed([], Acc) -> lists:reverse(Acc);
