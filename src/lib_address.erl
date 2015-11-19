@@ -235,23 +235,34 @@ address_type(<<$1:8, _/binary>>) -> p2pkh;
 address_type(<<$3:8, _/binary>>) -> p2sh.
 
 address_hashtype(Address) ->
-    <<Type:8/bitstring, Rest/binary>> = base58:base58_to_binary(Address),
+    <<Type:1/binary, Rest/binary>> = base58:base58_to_binary(Address),
     address_hashtype(Type, Rest).
 
+%% This is hardcoded in to detect either main or testnet3 need a much nicer way
+%% to do this.
+
 address_hashtype(<<0:8>>, BinAddress) ->
-    <<K:160/bitstring, _/binary>> = BinAddress,
+    <<K:20/binary, _/binary>> = BinAddress,
     {p2pkh, K};
 
 address_hashtype(<<5:8>>, BinAddress) ->
-    <<K:160/bitstring, _/binary>> = BinAddress,
+    <<K:20/binary, _/binary>> = BinAddress,
     {p2sh, K};
 
 address_hashtype(<<19:8>>, BinAddress) ->
-    <<Type:8/bitstring, Rest/binary>> = BinAddress,
-    address_hashtype(Type, Rest).
+    <<Type:1/binary, Rest/binary>> = BinAddress,
+    address_hashtype(Type, Rest);
+
+address_hashtype(<<111:8>>, BinAddress) ->
+    <<K:20/binary, _/binary>> = BinAddress,
+    {p2pkh, K};
+
+address_hashtype(<<196:8>>, BinAddress) ->
+    <<K:20/binary, _/binary>> = BinAddress,
+    {p2sh, K}.
 
 address_to_hash160(Address) ->
-	<<_:8, K:160/bitstring, _/binary>> = base58:base58_to_binary(Address),
+	<<_:8, K:20/binary, _/binary>> = base58:base58_to_binary(Address),
 	K.
 
 base58_check(V, Script) ->

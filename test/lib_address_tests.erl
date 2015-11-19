@@ -150,6 +150,13 @@ is_openassets() ->
     ?assertEqual(false, lib_address:is_openassets(btr_net_params:params(),
     											  "16UwLL9Risc3QfPqBUvKofHmBQ7wMtjvM")).
 
+testnet_addresses() ->
+	Address = "mwHu1wJDHAnb8ULya6UG75NQ8LyL5KLdV1",
+	OpenAssetAddress = "akSjpy42ZwdF2Dc2iu9c4w24ebxYoAFNp2C",
+	A = lib_address:new(Address),
+	B = lib_address:new(OpenAssetAddress),
+	?assertEqual(A, B).
+
 address_test_() -> 
   {foreach,
   fun start/0,
@@ -170,7 +177,8 @@ address_test_() ->
 		    {"Failed checksum", fun failed_checksum/0},
 		    {"Failed checksum p2sh", fun failed_checksum2/0},
 		    {"Color id checksum", fun color_identifier/0},
-			{"Is openassets target", fun is_openassets/0}
+			{"Is openassets target", fun is_openassets/0},
+			{"Testnet addresses", fun testnet_addresses/0}
    ]
   }.
 
