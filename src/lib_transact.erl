@@ -113,9 +113,9 @@ build_tx(Unspents, Payees, ChangeAddress, FeeFun) when is_function(FeeFun) ->
 	%% Use oldest unspents first
 	SortedUnspents = lib_kd:oldest(Unspents),
 	%% Peek at first color so that we can prime the payment object
-	[{_Address, Color, _Value}|_] = Payees2,
+	[P|_] = Payees2,
 	%% Build a multi-payment object
-	{Remaining, Payment} = pay(lib_transact:payment(lib_color:new(Color)), Payees2, SortedUnspents),
+	{Remaining, Payment} = pay(lib_transact:payment(lib_color:new(P#payee.color)), SortedUnspents, Payees2),
 	%% Finalize the payment and build a transaction
 	{ok, _, _Payment, Tx} = lib_transact:finalize(Payment, Remaining, ChangeAddress, FeeFun),
 	{ok, Tx}.

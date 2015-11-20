@@ -576,20 +576,25 @@ to_map(Tx) when is_binary(Tx) ->
     Tx2 = lib_parse:parse_tx(Tx),
     to_map(Tx2);
 to_map(Tx) when is_record(Tx, btxdef) ->
-    Hexstr = iolist_to_binary(hex:bin_to_hexstr(serialize(Tx))),
-    Txid = iolist_to_binary(hex:bin_to_hexstr(hex:bin_reverse(Tx#btxdef.txhash))),
+	{Hexstr, Txid} = hexstr_txhash(Tx),
     #{
             hex => Hexstr,
             txid => Txid,
             version => Tx#btxdef.txversion,
             locktime => Tx#btxdef.txlocktime,
-            vin => inputs_to_json(Tx#btxdef.txinputs),
-            vout => outputs_to_json(Tx#btxdef.txoutputs)
+            vin => lists:reverse(inputs_to_json(Tx#btxdef.txinputs)),
+            vout => lists:reverse(outputs_to_json(Tx#btxdef.txoutputs))
             %% blockhash not stored outside of block
             %% confirmations not stored outside of unspent pool
             %% time not stored outside of block
             %% blocktime now stored outside of block
     }.
+
+hexstr_txhash(#btxdef{txhash = undefined}) -> {<<"not signed">>, <<"not signed">>};
+hexstr_txhash(Tx) ->
+	{iolist_to_binary(hex:bin_to_hexstr(serialize(Tx))),
+	 iolist_to_binary(hex:bin_to_hexstr(hex:bin_reverse(Tx#btxdef.txhash)))}.
+
 
 inputs_to_json(Txinputs) ->
     lists:foldl(fun(E, Acc) ->
