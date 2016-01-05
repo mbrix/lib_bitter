@@ -63,34 +63,37 @@ init(_, _Network, Params) ->
 
 default_params(main = Net) ->
 	#{network => Net,
-	  magicbyte          => <<?MAGICBYTE_LIVE:32>>,
+	  magicbyte          => <<?MAGICBYTE_LIVE:32/little>>,
 	  p2pkh_checkbyte    => <<0:8>>,
 	  p2sh_checkbyte     => <<5:8>>,
 	  oa_checkbyte       => <<19:8>>,
 	  wif                => <<128:8>>,
 	  default_port       => 8333, 
+	  genesis_hash       => lib_utils:convert_hash("000000000019d6689c085ae165831e934ff763ae46a2a6c172b3f1b60a8ce26f"),
 	  block_path         => "/.bitcoin/blocks/"};
 
 
 default_params(testnet = Net) ->
 	#{network => Net,
-	  magicbyte          => <<?MAGICBYTE_TESTNET:32>>,
+	  magicbyte          => <<?MAGICBYTE_TESTNET:32/little>>,
 	  p2pkh_checkbyte    => <<111:8>>,
 	  p2sh_checkbyte     => <<196:8>>,
 	  oa_checkbyte       => <<19:8>>,
 	  wif                => <<239:8>>,
 	  default_port       => 18333, 
+	  genesis_hash       => lib_utils:convert_hash("000000000933ea01ad0ee984209779baaec3ced90fa3f408719526f8d77f4943"),
 	  block_path         => "/.bitcoin/testnet/blocks/"};
 
 
 default_params(testnet3 = Net) ->
 	#{network => Net,
-	  magicbyte          => <<?MAGICBYTE_TESTNET3:32>>,
+	  magicbyte          => <<?MAGICBYTE_TESTNET3:32/little>>,
 	  p2pkh_checkbyte    => <<111:8>>,
 	  p2sh_checkbyte     => <<196:8>>,
 	  wif                => <<239:8>>,
 	  oa_checkbyte       => <<19:8>>,
 	  default_port       => 18333, 
+	  genesis_hash       => lib_utils:convert_hash("000000000933ea01ad0ee984209779baaec3ced90fa3f408719526f8d77f4943"),
 	  block_path         => "/.bitcoin/testnet3/blocks/"}.
 
 ast_syntax_body(NetMap) ->

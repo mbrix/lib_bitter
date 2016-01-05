@@ -58,6 +58,7 @@
 	     readable/2,
 	     readable_txhash/1,
 	     readable_txhash/2,
+	     hexstr_to_txhash/1,
 	     from_hex/1,
 	     vector/1,
 	     sigs/1,
@@ -272,6 +273,8 @@ readable(binary, Tx) when is_record(Tx, btxdef) ->
 
 readable(Tx) when is_record(Tx, btxdef) ->
 	hex:bin_to_hexstr(serialize_btxdef(Tx)).
+
+hexstr_to_txhash(Hexstr) -> hex:bin_reverse(hex:hexstr_to_bin(Hexstr)).
 
 from_hex(Hexstr) ->
 	RawTX = hex:hexstr_to_bin(Hexstr),
@@ -550,6 +553,7 @@ pushdata_to_int(_) -> error.
 
 
 % Vector conversion
+vector([A,B]) -> [A, B]; 
 vector(V) when is_record(V, btxdef) ->
 	H = V#btxdef.txhash,
 	[?INV_TX, << H:256/bitstring >>];

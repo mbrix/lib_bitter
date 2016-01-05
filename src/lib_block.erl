@@ -34,6 +34,7 @@
          to_json/1,
          to_map/1,
          blockhash/1,
+         from_string/1,
          readable_hash/1,
          readable_hash/2,
          hashes/1,
@@ -54,6 +55,8 @@
 -define(BINARY,    2).
 
 
+from_string(X) when is_record(X, bbdef) -> from_string(X#bbdef.blockhash);
+from_string(X) -> hex:bin_reverse(hex:hexstr_to_bin(X)).
 
 %% Unique addresses in block
 addresses(Block) -> addresses(tx, Block#bbdef.txdata, #{}).
