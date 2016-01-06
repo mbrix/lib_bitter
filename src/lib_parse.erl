@@ -37,6 +37,8 @@
 		 parse_script/1,
 	     getTransactions/2,
 	     getTransactions/3,
+	     getVarInt/1,
+	     headers/2,
 	     extract/1,
 	     extract_header/1]).
 
@@ -362,3 +364,28 @@ extract_header(<<MagicByte:32/little,
    		       txcount=TXCount,
                txdata=[]}}.
 
+
+%% Parse network headers
+headers(MagicByte, Packet) ->  
+ [header_to_bbdef(MagicByte, Head) || <<Head:81/binary>> <= Packet].
+
+header_to_bbdef(MagicByte, Bin) ->
+     <<VersionNumber:32/little,
+     PreviousHash:32/binary, 
+     MerkleRoot:32/binary, 
+     TimeStamp:32/little, 
+     TargetDifficulty:32/little, 
+     Nonce:32/little,
+     0:8>> = Bin,
+	BlockHash = crypto:hash(sha256, crypto:hash(sha256, Bin)),
+     #bbdef{network = MagicByte,
+     		blockhash = BlockHash,
+     		headerlength = 80,
+     		version = VersionNumber,
+     		previoushash = PreviousHash,
+     		merkleroot = MerkleRoot,
+     		timestamp = TimeStamp,
+     		difficulty = TargetDifficulty,
+     		nonce = Nonce,
+     		txcount = 0,
+     		txdata  = []}.

@@ -63,7 +63,7 @@ init(_, _Network, Params) ->
 
 default_params(main = Net) ->
 	#{network => Net,
-	  magicbyte          => <<?MAGICBYTE_LIVE:32/little>>,
+	  magicbyte          => ?MAGICBYTE_LIVE,
 	  p2pkh_checkbyte    => <<0:8>>,
 	  p2sh_checkbyte     => <<5:8>>,
 	  oa_checkbyte       => <<19:8>>,
@@ -75,7 +75,7 @@ default_params(main = Net) ->
 
 default_params(testnet = Net) ->
 	#{network => Net,
-	  magicbyte          => <<?MAGICBYTE_TESTNET:32/little>>,
+	  magicbyte          => ?MAGICBYTE_TESTNET,
 	  p2pkh_checkbyte    => <<111:8>>,
 	  p2sh_checkbyte     => <<196:8>>,
 	  oa_checkbyte       => <<19:8>>,
@@ -87,7 +87,7 @@ default_params(testnet = Net) ->
 
 default_params(testnet3 = Net) ->
 	#{network => Net,
-	  magicbyte          => <<?MAGICBYTE_TESTNET3:32/little>>,
+	  magicbyte          => ?MAGICBYTE_TESTNET3,
 	  p2pkh_checkbyte    => <<111:8>>,
 	  p2sh_checkbyte     => <<196:8>>,
 	  wif                => <<239:8>>,
