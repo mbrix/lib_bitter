@@ -32,7 +32,9 @@
 -include_lib("eunit/include/eunit.hrl").
 
 
-start() -> ok.
+start() -> 
+	btr_net_params:init(main),
+	ok.
 
 stop(_) -> ok.
 
@@ -176,7 +178,7 @@ doublehash(A) -> crypto:hash(sha256, crypto:hash(sha256, A)).
 loadblock() ->
     HexBlock = erlang:binary_to_list(lib_test:data("rawblock2.hex")),
     RawBlock = hex:hexstr_to_bin(HexBlock),
-    {_, BlockRecord, _, _} = lib_parse:extract(RawBlock),
+    {_, BlockRecord, _, _} = lib_parse:extract(btr_net_params:params(), RawBlock),
     BlockRecord.
 
 %print_bits (<<>>) -> ok;

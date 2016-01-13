@@ -27,79 +27,82 @@
 -module(lib_parse).
 -author('mbranton@emberfinancial.com').
 
--export([parse/1,
-         parse_file/1,
-	     parse_block/2,
-	     parse_raw_block/1,
-	     parse_raw_block/2,
-	     parse_raw/1,
-	     parse_tx/1,
+-export([parse_file/3,
+	     parse_block/3,
+	     parse_raw_block/3,
+	     parse_raw_block/4,
+	     parse_raw/2,
+	     parse_tx/2,
 		 parse_script/1,
+		 parsef/3,
 	     getTransactions/2,
 	     getTransactions/3,
 	     getVarInt/1,
 	     headers/2,
-	     extract/1,
+	     extract/2,
 	     extract_header/1]).
 
 -include("bitter.hrl").
 
-parse_raw(Bin) ->
-    {continue, BlockRecord, _BlockOffset, _Offsets} = extract(Bin),
+
+%% Lib parse supports parsing to bbdef records, or passes data to bblock to parse as raw block records
+
+parse_raw(Network, Bin) ->
+    {continue, BlockRecord, _BlockOffset, _Offsets} = extract(Network, Bin),
     BlockRecord.
 
-parse(Fname) ->
+parsef(Type, Network, Fname) ->
 	case file:read_file(Fname) of
-		{ok, Data} -> extractLoop(Data, 0);
+		{ok, Data} -> extractLoop(Type, Network, Data, 0);
 		{error, Reason} -> {stop, Reason, {Fname}}
 	end.
 
 %% For debugging, breaks file up into an array in ram.
-parse_file(Filename) ->
-    parse_file(parse(Filename), []).
 
 parse_file({continue, Block, BlockOffsets, TxOffsets, Fun}, Acc) ->
     parse_file(Fun(), [{Block, BlockOffsets, TxOffsets}|Acc]);
 
 parse_file(done, Acc) -> Acc.
 
+parse_file(Type, Network, Filename) ->
+    parse_file(parsef(Type, Network, Filename), []).
 
-parse_block(MagicByte, Block) ->
+parse_block(Type, MagicByte, Block) ->
 	Size = size(Block),
 	B = erlang:iolist_to_binary([<<MagicByte:32/little, 
     						     Size:32/little>>,
 								 Block]),
-	extractLoop(B, 0).
+	extractLoop(Type, MagicByte, B, 0).
 
-parse_raw_block(Block) ->
-    extractLoop(Block, 0).
+parse_raw_block(Type, MagicByte, Block) ->
+    extractLoop(Type, MagicByte, Block, 0).
 
-parse_raw_block(Block, Offset) ->
-    extractLoop(Block, Offset).
+parse_raw_block(Type, MagicByte, Block, Offset) ->
+    extractLoop(Type, MagicByte, Block, Offset).
 
-parse_tx(TxData) ->
+parse_tx(btx, TxData) -> bblock:parse_tx(TxData);
+parse_tx(btxdef, TxData) -> 
 	[[T], _, _] = getTransactions(1, TxData),
 	T.
 
-extractLoop(Data, StartOffset) ->
-%	try
-	    case extract(Data) of
+extractLoop(Type, Network, Data, StartOffset) ->
+    case parse_type(Type, Network, Data) of
 	    	{ok, Block2, TxOffsets, Next} ->
 	    	    BlockSize = byte_size(Data) - byte_size(Next),
 	    	    NewTxOffsets = adjust_offsets(TxOffsets, StartOffset),
                 {continue, Block2,
                  {StartOffset, BlockSize}, NewTxOffsets,
-                 fun() -> extractLoop(Next, StartOffset+BlockSize) end};
+                 fun() -> extractLoop(Type, Network, Next, StartOffset+BlockSize) end};
 	    	{scan, Next} ->
 	    		<<_:8, Bin/binary>> = Next,
-	    		extractLoop(Bin, StartOffset+1);
-	    	ok -> 
+	    		extractLoop(Type, Network, Bin, StartOffset+1);
+	    	done -> 
 	    	    erlang:garbage_collect(self()),
 	    	    done
 	    end.
-%	catch
-%		_:_ -> done
-%	end.
+
+parse_type(bblock, Network, Data) -> bblock:parse(Network, Data);
+parse_type(bbdef, Network, Data) -> extract(Network, Data).
 
 adjust_offsets(TxOffsets, Adjustment) ->
     lists:map(fun(E) ->
@@ -289,8 +292,11 @@ getTransactions(TXCount, Tbin, Acc, Offsets, StartOffset) ->
 				[{TransactionHash, StartOffset, TXLength}|Offsets],
 				StartOffset + TXLength).
 
-extract(<<>>) -> ok;
-extract(<<MagicByte:32/little, 
+extract(#{magicbyte := MB}, Data) -> extract(MB, Data);
+
+extract(_Network, <<>>) -> done;
+extract(MagicByte,
+		<<MagicByte:32/little, 
     HeaderLength:32/little,
     VersionNumber:32/little, 
     PreviousHash:32/binary, 
@@ -326,7 +332,7 @@ extract(<<MagicByte:32/little,
 	lists:reverse(TxOffsets), Rest}
 	catch _:_ ->  {scan, L}
 	end;
-extract(Data) -> {scan, Data}.
+extract(_MagicByte, Data) -> {scan, Data}.
 
 %% This isn't a real difficulty check
 %% it's here to filter out crap data that results in

@@ -33,6 +33,7 @@
 
 
 start() ->
+	btr_net_params:init(main),
 	ok.
 
 stop(_) ->
@@ -40,16 +41,16 @@ stop(_) ->
 
 parse_serialize() ->
     RawBlock = hex:hexstr_to_bin("F9BEB4D9D80000000100000046441C1EB8D69E9ABBE79DF5D965DD9F30A60476EC810CB83C8851B5000000004E2D36D427F313825CB27C1649BDEFF1FBDB4D55B2602069AEBA68D3113565AAA4257249FFFF001D2EF42DD50101000000010000000000000000000000000000000000000000000000000000000000000000FFFFFFFF0804FFFF001D022002FFFFFFFF0100F2052A010000004341046D8F7D934354FE18806DDE9C2362A4693A4C6F55E4E23823419545BF82C39BF6AF29E38CE585F570960897BC60A3B616C4028322A891046DCD3C4373A24A1577AC00000000"),
-    {_, BlockRecord, _, _} = lib_parse:extract(RawBlock),
+    {_, BlockRecord, _, _} = lib_parse:extract(btr_net_params:params(), RawBlock),
     BinBlock = lib_block:serialize(BlockRecord),
     ?assertEqual(RawBlock,BinBlock),
-    {_, BlockRecord2, _, _} = lib_parse:extract(BinBlock),
+    {_, BlockRecord2, _, _} = lib_parse:extract(btr_net_params:params(), BinBlock),
     ?assertEqual(BlockRecord, BlockRecord2).
 
 complicated_serialize() ->
     HexBlock = erlang:binary_to_list(lib_test:data("rawblock2.hex")),
     RawBlock = hex:hexstr_to_bin(HexBlock),
-    {_, BlockRecord, _, _} = lib_parse:extract(RawBlock),
+    {_, BlockRecord, _, _} = lib_parse:extract(btr_net_params:params(), RawBlock),
     BinBlock = lib_block:serialize(BlockRecord),
     %?debugFmt("~p~n~p~n", [RawBlock, BinBlock]),
     ?assertEqual(RawBlock, BinBlock).
@@ -64,7 +65,7 @@ color() ->
 json_serialize() ->
     HexBlock = erlang:binary_to_list(lib_test:data("rawblock2.hex")),
     RawBlock = hex:hexstr_to_bin(HexBlock),
-    {_, BlockRecord, _, _} = lib_parse:extract(RawBlock),
+    {_, BlockRecord, _, _} = lib_parse:extract(btr_net_params:params(), RawBlock),
     JsonBlock = lib_block:to_json(BlockRecord),
     D = jiffy:decode(JsonBlock, [return_maps]),
     ?assertEqual(hex:bin_reverse(hex:hexstr_to_bin(binary_to_list(maps:get(<<"hash">>, D)))),
@@ -81,11 +82,11 @@ blockhash_to_binary() ->
 offset_checking() ->
     HexBlock = erlang:binary_to_list(lib_test:data("rawblock2.hex")),
     RawBlock = hex:hexstr_to_bin(HexBlock),
-    {continue, B, _BlockOffset, Offsets, _} = lib_parse:parse_raw_block(RawBlock),
+    {continue, B, _BlockOffset, Offsets, _} = lib_parse:parse_raw_block(bbdef, btr_net_params:params(), RawBlock),
     lists:foreach(fun(E) ->
                 {Tx, {Hash, Offset, Length}} = E,
                 ?assertEqual(Hash, Tx#btxdef.txhash),
-                ParsedTx = lib_parse:parse_tx(binary:part(RawBlock, {Offset, Length})),
+                ParsedTx = lib_parse:parse_tx(btxdef, binary:part(RawBlock, {Offset, Length})),
                 ?assertEqual(Tx, ParsedTx)
         end, lists:zip(B#bbdef.txdata, Offsets)).
 
@@ -93,23 +94,17 @@ multiblock_offset_checking() ->
     HexBlock = erlang:binary_to_list(lib_test:data("rawblock2.hex")),
     RawBlock = hex:hexstr_to_bin(HexBlock),
     RawChunk = iolist_to_binary([RawBlock, RawBlock, RawBlock, RawBlock]),
-    {continue, _, _, _, NextBlock2} = lib_parse:parse_raw_block(RawChunk),
+    {continue, _, _, _, NextBlock2} = lib_parse:parse_raw_block(bbdef, btr_net_params:params(), RawChunk),
     {continue, _, _, _, NextBlock3} = NextBlock2(),
     {continue, B, {BlockOffset, BlockLength}, Offsets, _} = NextBlock3(),
     lists:foreach(fun(E) ->
                 {Tx, {Hash, Offset, Length}} = E,
                 ?assertEqual(Hash, Tx#btxdef.txhash),
-                ParsedTx = lib_parse:parse_tx(binary:part(RawChunk, {Offset, Length})),
+                ParsedTx = lib_parse:parse_tx(btxdef, binary:part(RawChunk, {Offset, Length})),
                 ?assertEqual(Tx, ParsedTx)
         end, lists:zip(B#bbdef.txdata, Offsets)),
-    {continue, B2, _, _, _} = lib_parse:parse_raw_block(binary:part(RawChunk, {BlockOffset, BlockLength})),
+    {continue, B2, _, _, _} = lib_parse:parse_raw_block(bbdef, btr_net_params:params(), binary:part(RawChunk, {BlockOffset, BlockLength})),
     ?assertEqual(B, B2).
-
-%rawblock_parsing() ->
-%    HexBlock = erlang:binary_to_list(lib_test:data("rawblock3.hex")),
-%    RawBlock = hex:hexstr_to_bin(HexBlock),
-%    {continue, _, _, _, _NextBlock} = lib_parse:parse_raw_block(RawBlock).
-%
 
 block_test_() -> 
   {foreach,
@@ -123,6 +118,5 @@ block_test_() ->
 		{"Blockhash to binary", fun blockhash_to_binary/0},
 		{"Offset checking", fun offset_checking/0},
 		{"Multiple blocks", fun multiblock_offset_checking/0}
-%		{"Rawblock parsing", fun rawblock_parsing/0}
    ]
   }.

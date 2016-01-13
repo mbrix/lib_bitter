@@ -52,6 +52,15 @@
 % Always get the nearest cache
 -define(WHERECACHE, lib_notify:where(near, bitter_objcache)).
 
+% Raw block binary formats
+
+-record(bblock, {data, meta}).
+-record(btx, {data, parent, meta}).
+
+-record(binput, {data, parent, meta}).
+-record(boutput, {data, parent, meta}).
+
+
 % Expanded to nclude cumulative fields
 -record(bbdef, {network,
 		        blockhash, 

@@ -332,8 +332,8 @@ coinbase_tx() ->
 validate_p2pkh() ->
 	Tx = lib_parse:parse_tx(hex:hexstr_to_bin("0100000001802f6b5f7515e9b11575926b25c340b69964924aaf792a00627edcaab9d3d2bd000000006c493046022100ac7e4e27f2b11cb86fb5aa872ab9d32cdc083380733e3e9847ff77a069cddfab022100c04c3e6ffe88a15bc507b8e571aa35928acfe15a4a23201b08fe3c7b3c97c88f0121024005c945d86ac6b01fb04258345abea7a845bd25689edb723d5ad4068ddd3036ffffffff026073f040000000001976a914406d7324bacc8f7ee02091dedd707770fc3ff38288ac80969800000000001976a91406f1b67078fc400a63d54c313cd6bb817e4760f088ac00000000")),
 	TxIndex = 0,
-	[I|_] = Tx#btxdef.txinputs,
-	ScriptSig = I#btxin.script,
+	I = bblock:input(Tx, 1),
+	ScriptSig = bblock:script(I),
 	?assertEqual(ScriptSig, hex:hexstr_to_bin("493046022100ac7e4e27f2b11cb86fb5aa872ab9d32cdc083380733e3e9847ff77a069cddfab022100c04c3e6ffe88a15bc507b8e571aa35928acfe15a4a23201b08fe3c7b3c97c88f0121024005c945d86ac6b01fb04258345abea7a845bd25689edb723d5ad4068ddd3036")),
 	ScriptPubKey = hex:hexstr_to_bin("76a9140c1b83d01d0ffb2bccae606963376cca3863a7ce88ac"),
 	?assertEqual(true, lib_script:eval(ScriptSig, ScriptPubKey, TxIndex, Tx)).
@@ -846,7 +846,7 @@ scripts9() ->
 %	%% Deserialize compact form to number
 
 
-script_test_() -> 
+script_tes_() -> 
   {foreach,
   fun start/0,
   fun stop/1,

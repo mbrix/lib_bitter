@@ -473,6 +473,9 @@ find_output(Tx, Output) ->
 
 % Serialization
 %
+
+serialize(Tx) when is_record(Tx, btx) -> bblock:serialize(Tx);
+
 serialize(Tx) when is_record(Tx, btxdef) ->
 	serialize_btxdef(Tx).
 
