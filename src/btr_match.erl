@@ -115,8 +115,7 @@ bloom_fun(BloomFilter, all) -> bloom_fun(BloomFilter, [all]);
 bloom_fun(BloomFilter, FieldList) ->
 	fun(Datum) ->
 			try
-				check_fields(BloomFilter, Datum, FieldList),
-				false
+				check_fields(BloomFilter, Datum, FieldList)
 			catch
 				_:_ -> true
 			end
@@ -133,7 +132,7 @@ check_fields(BloomFilter, Datum, _) when is_record(Datum, utxop) ->
 	bitter_bloom:contains(BloomFilter, Datum#utxop.script));
 
 %% Selective Bloom Filter Checking on TX inputs and Outputs
-check_fields(_BloomFilter, _Tx, []) -> ok;
+check_fields(_BloomFilter, _Tx, []) -> false;
 check_fields(BloomFilter, Tx, [Field|T]) ->
 	compare_field(Field, Tx, BloomFilter),
 	check_fields(BloomFilter, Tx, T).
