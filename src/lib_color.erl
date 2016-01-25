@@ -45,19 +45,19 @@
 	     marker/1,
 	     meta/1,
 	     meta_url/1,
-	     readable/1,
 	     readable/2,
-	     readable_colors/1,
-	     readable_issue_colors/1,
+	     readable/3,
+	     readable_colors/2,
+	     readable_issue_colors/2,
 	     find_color/2,
 	     from/1,
 	     new/0,
 	     new/1,
 	     new/2,
 	     from_json/1,
-	     to_json/1,
-	     to_cprism/1,
-	     to_map/1,
+	     to_json/2,
+	     to_cprism/2,
+	     to_map/2,
 	     hash160/1,
 	     find_spend_color/2,
 	     new_spend_color/1,
@@ -104,8 +104,8 @@ parse_color(Map) ->
             end
 	end.
 
-source_list(Color) ->
-	[erlang:list_to_binary(readable(Color))].
+source_list(NetworkParams, Color) ->
+	[erlang:list_to_binary(readable(NetworkParams, Color))].
 
 
 get_asset_ids(D) ->
@@ -141,12 +141,12 @@ from_json(Definition) ->
 		image_url = val(<<"image_url">>, D),
 		version = val(<<"version">>, D)}.
 
-to_json(Color) when is_record(Color, color) ->
-	jiffy:encode(to_map(Color)).
+to_json(NetworkParams, Color) when is_record(Color, color) ->
+	jiffy:encode(to_map(NetworkParams, Color)).
 
-to_map(Color) when is_record(Color, color) ->
+to_map(NetworkParams, Color) when is_record(Color, color) ->
 	#{<<"name">> => Color#color.name,
-			       <<"asset_ids">> => source_list(Color),
+			       <<"asset_ids">> => source_list(NetworkParams, Color),
 			       <<"contract_url">> => to_binary(Color#color.contract_url),
 			       <<"name_short">> => to_binary(Color#color.short_name),
 			       <<"issuer">> => to_binary(Color#color.issuer),
@@ -160,11 +160,11 @@ to_map(Color) when is_record(Color, color) ->
 			<<"version">> => Color#color.version
 	 }.
 
-to_cprism(Color) when is_record(Color, color) ->
-	jiffy:encode(to_cprism_map(Color)).
+to_cprism(NetworkParams, Color) when is_record(Color, color) ->
+	jiffy:encode(to_cprism_map(NetworkParams, Color)).
 
-to_cprism_map(Color) when is_record(Color, color) ->
-	#{<<"asset_id">> => erlang:list_to_binary(readable(Color)),
+to_cprism_map(NetworkParams, Color) when is_record(Color, color) ->
+	#{<<"asset_id">> => erlang:list_to_binary(readable(NetworkParams, Color)),
 	  <<"metadata_url">> => to_binary(Color#color.contract_url),
 	  <<"final_metadata_url">> => to_binary(Color#color.contract_url),
 	  <<"verified_issuer">> => false,
@@ -498,14 +498,14 @@ string_to_bin(S) when is_atom(S) -> S;
 string_to_bin(S) when is_list(S) -> erlang:list_to_binary(S);
 string_to_bin(S) -> S.
 
-readable(binary, Color) -> string_to_bin(readable(Color)).
+readable(binary, NetworkParams, Color) -> string_to_bin(readable(NetworkParams, Color)).
 
-readable(?Uncolored) -> uncolored;
-readable(IssueColor) when is_atom(IssueColor) -> IssueColor;
-readable(IssueColor) when is_record(IssueColor, color) ->
-	readable(IssueColor#color.bin);
-readable(IssueColor) ->
-    lib_address:base58_check(<<23:8>>, IssueColor).
+readable(_, ?Uncolored) -> uncolored;
+readable(_NetworkParams, IssueColor) when is_atom(IssueColor) -> IssueColor;
+readable(NetworkParams, IssueColor) when is_record(IssueColor, color) ->
+	readable(NetworkParams, IssueColor#color.bin);
+readable(NetworkParams, IssueColor) ->
+    lib_address:base58_check(maps:get(oa_assetbyte, NetworkParams), IssueColor).
 
 color_address(ColorBin) when is_binary(ColorBin) ->
     color_address(erlang:binary_to_list(ColorBin));
@@ -548,15 +548,16 @@ colors(Unspents) ->
 	sets:to_list(lists:foldl(fun(E, Acc) ->
 				sets:add_element(E#utxop.color, Acc) end, sets:new(), Unspents)).
 
-readable_colors(Unspents) ->
+readable_colors(NetworkParams, Unspents) ->
 	sets:to_list(lists:foldl(fun(E, Acc) ->
-				sets:add_element(readable(E#utxop.color), Acc) end, sets:new(), Unspents)).
+				sets:add_element(readable(NetworkParams, E#utxop.color), Acc) end, sets:new(), Unspents)).
 
-readable_issue_colors(Unspents) ->
+readable_issue_colors(NetworkParams, Unspents) ->
 	dict:to_list(lists:foldl(fun(E, Acc) ->
                     case E#utxop.color of
                         ?Uncolored ->
-                            dict:store(readable(unspent_to_ic(E)),
+                            dict:store(readable(NetworkParams,
+                            					unspent_to_ic(E)),
                                       [lib_address:openassets(E),
                                        lib_address:readable(E)], Acc);
                         _ -> Acc

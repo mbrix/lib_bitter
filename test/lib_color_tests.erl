@@ -35,6 +35,7 @@
 	     outputs_to_inputs/1]).
 
 start() ->
+	btr_net_params:init(main),
 	fakeutxo:start(),  % Real working utxo pool
 	fake_colored_block(),
 	ok.
@@ -854,9 +855,9 @@ get_meta_url() ->
 
 new_addresses() ->
     C = lib_color:new("ALn3aK1fSuG27N96UGYB1kUYUpGKRhBuBC"),
-    ?assertEqual("ALn3aK1fSuG27N96UGYB1kUYUpGKRhBuBC", lib_color:readable(C)),
+    ?assertEqual("ALn3aK1fSuG27N96UGYB1kUYUpGKRhBuBC", lib_color:readable(btr_net_params:params(), C)),
     D = lib_color:new("3QzJDrSsi4Pm2DhcZFXR9MGJsXXtsYhUsq"),
-    ?assertEqual("Af59wop4VJjXk2DAzoX9scAUCcAsghPHFX", lib_color:readable(D)).
+    ?assertEqual("Af59wop4VJjXk2DAzoX9scAUCcAsghPHFX", lib_color:readable(btr_net_params:params(), D)).
 
 is_color_address() ->
     ?assertEqual(true, lib_color:is_color_address("Af59wop4VJjXk2DAzoX9scAUCcAsghPHFX")),

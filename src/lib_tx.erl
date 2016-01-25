@@ -63,8 +63,8 @@
 	     vector/1,
 	     sigs/1,
 	     total/1,
-	     to_json/1,
-	     to_map/1]).
+	     to_json/2,
+	     to_map/2]).
 
 
 -include_lib("bitter.hrl").
@@ -577,12 +577,11 @@ add_outputs(O, Value) ->
     [H|T] = O,
     add_outputs(T, Value + H#btxout.value).
 
-to_json(Tx) -> jiffy:encode(to_map(Tx)).
+to_json(NetworkParams, Tx) -> jiffy:encode(to_map(NetworkParams, Tx)).
 
-to_map(Tx) when is_binary(Tx) ->
-    Tx2 = lib_parse:parse_tx(Tx),
-    to_map(Tx2);
-to_map(Tx) when is_record(Tx, btxdef) ->
+to_map(NetworkParams, Tx) when is_binary(Tx) ->
+    to_map(NetworkParams, lib_parse:parse_tx(Tx));
+to_map(NetworkParams, Tx) when is_record(Tx, btxdef) ->
 	{Hexstr, Txid} = hexstr_txhash(Tx),
     #{
             hex => Hexstr,
@@ -590,7 +589,7 @@ to_map(Tx) when is_record(Tx, btxdef) ->
             version => Tx#btxdef.txversion,
             locktime => Tx#btxdef.txlocktime,
             vin => lists:reverse(inputs_to_json(Tx#btxdef.txinputs)),
-            vout => lists:reverse(outputs_to_json(Tx#btxdef.txoutputs))
+            vout => lists:reverse(outputs_to_json(NetworkParams, Tx#btxdef.txoutputs))
             %% blockhash not stored outside of block
             %% confirmations not stored outside of unspent pool
             %% time not stored outside of block
@@ -622,12 +621,12 @@ scriptsig_to_json(Script) ->
     #{hex => Hexbin,
       asm => <<"">>}.
 
-outputs_to_json(Txoutputs) ->
+outputs_to_json(NetworkParams, Txoutputs) ->
     {_, O} = lists:foldl(fun(E, {Vcounter, Outputs}) ->
                 {Vcounter+1, [#{value => lib_transact:satoshi_to_btc(E#btxout.value),
                                 vout => Vcounter,
                                 scriptPubKey => scriptpubkey_to_json(E#btxout.script),
-                                color => color_to_json(E#btxout.color),
+                                color => color_to_json(NetworkParams, E#btxout.color),
                                 quantity => E#btxout.quantity}|Outputs]}
             end, {0, []}, Txoutputs),
     O.
@@ -637,8 +636,8 @@ scriptpubkey_to_json(Script) ->
     #{hex => Hexbin,
       asm => <<"">>}.
 
-color_to_json(?Uncolored) -> <<"uncolored">>;
-color_to_json(C) when is_binary(C) -> lib_color:readable(binary, lib_color:new(C)).
+color_to_json(_, ?Uncolored) -> <<"uncolored">>;
+color_to_json(NetworkParams, C) when is_binary(C) -> lib_color:readable(binary, NetworkParams, lib_color:new(C)).
 
 
 

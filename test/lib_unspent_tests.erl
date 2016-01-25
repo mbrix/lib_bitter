@@ -41,7 +41,7 @@ stop(_) ->
 json_serialization() ->
     Unspents = lists:map(fun(_) -> lib_test:random_unspent(random:uniform(350000)) end,
               lists:seq(1,100)),
-    _JsonList = lib_unspent:to_json(Unspents, 1000000).
+    _JsonList = lib_unspent:to_json(btr_net_params:params(), Unspents, 1000000).
 
 confirmation_filter() ->
     Unspents = [lib_test:random_unspent(100),
@@ -54,7 +54,7 @@ confirmation_filter() ->
     FilterC = lib_unspent:filter_by_confirmations(Unspents, 102, 0, 2),
     ?assertEqual(2, length(FilterC)).
 
-block_test_() -> 
+unspent_test_() -> 
   {foreach,
   fun start/0,
   fun stop/1,
