@@ -29,90 +29,90 @@
 -module(btr_net_params).
 
 -export([init/1,
-		 params/0,
-		 params/1]).
+         params/0,
+         params/1]).
 
 -include_lib("bitter.hrl").
 
 init(Network) ->
-	init(code:is_loaded(btr_net_prms), Network).
+    init(code:is_loaded(btr_net_prms), Network).
 
 init(false, Network) -> init(false, Network, default_params(Network));
 init(_, _) -> ok.
 
 init(_, _Network, Params) ->
-     Module = erl_syntax:attribute(erl_syntax:atom(module),[erl_syntax:atom(btr_net_prms)]),
-     ModForm =  erl_syntax:revert(Module),
-     
-     Export = erl_syntax:attribute(erl_syntax:atom(export),
-     							  [erl_syntax:list([erl_syntax:arity_qualifier(erl_syntax:atom(params),
-     																		   erl_syntax:integer(0))])]),
-     ExportForm = erl_syntax:revert(Export),
-     
-     Clause1 =  erl_syntax:clause([],[],[ast_syntax_body(Params)]),
-     
-     Function =  erl_syntax:function(erl_syntax:atom(params),[Clause1]),
-     FunctionForm = erl_syntax:revert(Function),
-     
-     {ok, Mod, Bin1} = compile:forms([ModForm,ExportForm, FunctionForm]),
-     code:load_binary(Mod, [], Bin1),
-     ok.
+    Module = erl_syntax:attribute(erl_syntax:atom(module),[erl_syntax:atom(btr_net_prms)]),
+    ModForm =  erl_syntax:revert(Module),
+
+    Export = erl_syntax:attribute(erl_syntax:atom(export),
+                                  [erl_syntax:list([erl_syntax:arity_qualifier(erl_syntax:atom(params),
+                                                                               erl_syntax:integer(0))])]),
+    ExportForm = erl_syntax:revert(Export),
+
+    Clause1 =  erl_syntax:clause([],[],[ast_syntax_body(Params)]),
+
+    Function =  erl_syntax:function(erl_syntax:atom(params),[Clause1]),
+    FunctionForm = erl_syntax:revert(Function),
+
+    {ok, Mod, Bin1} = compile:forms([ModForm,ExportForm, FunctionForm]),
+    code:load_binary(Mod, [], Bin1),
+    ok.
 
 
 %% Default params
 
 default_params(main = Net) ->
-	#{network => Net,
-	  magicbyte          => ?MAGICBYTE_LIVE,
-	  p2pkh_checkbyte    => <<0:8>>,
-	  p2sh_checkbyte     => <<5:8>>,
-	  oa_checkbyte       => <<19:8>>,
-	  oa_assetbyte       => <<23:8>>,
-	  wif                => <<128:8>>,
-	  default_port       => 8333, 
-	  genesis_hash       => lib_utils:convert_hash("000000000019d6689c085ae165831e934ff763ae46a2a6c172b3f1b60a8ce26f"),
-	  block_path         => "/.bitcoin/blocks/"};
+    #{network => Net,
+      magicbyte          => ?MAGICBYTE_LIVE,
+      p2pkh_checkbyte    => <<0:8>>,
+      p2sh_checkbyte     => <<5:8>>,
+      oa_checkbyte       => <<19:8>>,
+      oa_assetbyte       => <<23:8>>,
+      wif                => <<128:8>>,
+      default_port       => 8333, 
+      genesis_hash       => lib_utils:convert_hash("000000000019d6689c085ae165831e934ff763ae46a2a6c172b3f1b60a8ce26f"),
+      block_path         => "/.bitcoin/blocks/"};
 
 
 default_params(testnet = Net) ->
-	#{network => Net,
-	  magicbyte          => ?MAGICBYTE_TESTNET,
-	  p2pkh_checkbyte    => <<111:8>>,
-	  p2sh_checkbyte     => <<196:8>>,
-	  oa_checkbyte       => <<19:8>>,
-	  oa_assetbyte       => <<115:8>>,
-	  wif                => <<239:8>>,
-	  default_port       => 18333, 
-	  genesis_hash       => lib_utils:convert_hash("000000000933ea01ad0ee984209779baaec3ced90fa3f408719526f8d77f4943"),
-	  block_path         => "/.bitcoin/testnet/blocks/"};
+    #{network => Net,
+      magicbyte          => ?MAGICBYTE_TESTNET,
+      p2pkh_checkbyte    => <<111:8>>,
+      p2sh_checkbyte     => <<196:8>>,
+      oa_checkbyte       => <<19:8>>,
+      oa_assetbyte       => <<115:8>>,
+      wif                => <<239:8>>,
+      default_port       => 18333, 
+      genesis_hash       => lib_utils:convert_hash("000000000933ea01ad0ee984209779baaec3ced90fa3f408719526f8d77f4943"),
+      block_path         => "/.bitcoin/testnet/blocks/"};
 
 
 default_params(testnet3 = Net) ->
-	#{network => Net,
-	  magicbyte          => ?MAGICBYTE_TESTNET3,
-	  p2pkh_checkbyte    => <<111:8>>,
-	  p2sh_checkbyte     => <<196:8>>,
-	  wif                => <<239:8>>,
-	  oa_checkbyte       => <<19:8>>,
-	  oa_assetbyte       => <<115:8>>,
-	  default_port       => 18333, 
-	  genesis_hash       => lib_utils:convert_hash("000000000933ea01ad0ee984209779baaec3ced90fa3f408719526f8d77f4943"),
-	  block_path         => "/.bitcoin/testnet3/blocks/"}.
+    #{network => Net,
+      magicbyte          => ?MAGICBYTE_TESTNET3,
+      p2pkh_checkbyte    => <<111:8>>,
+      p2sh_checkbyte     => <<196:8>>,
+      wif                => <<239:8>>,
+      oa_checkbyte       => <<19:8>>,
+      oa_assetbyte       => <<115:8>>,
+      default_port       => 18333, 
+      genesis_hash       => lib_utils:convert_hash("000000000933ea01ad0ee984209779baaec3ced90fa3f408719526f8d77f4943"),
+      block_path         => "/.bitcoin/testnet3/blocks/"}.
 
 ast_syntax_body(NetMap) ->
-	erl_syntax:map_expr( maps:fold(fun(K, V, Acc) when is_integer(V) ->
-										   [erl_syntax:map_field_assoc(erl_syntax:atom(K),
-										   							   erl_syntax:integer(V))|Acc];
-									  (K, V, Acc) when is_binary(V) ->
-									  	   [erl_syntax:map_field_assoc(erl_syntax:atom(K),
-													erl_syntax:binary(lists:map(fun(I) ->
-																						erl_syntax:binary_field(erl_syntax:integer(I))
-																				end, binary_to_list(V))))|Acc];
-									 (K, V, Acc) when is_atom(V) ->
-									 	  [erl_syntax:map_field_assoc(erl_syntax:atom(K), erl_syntax:atom(V))|Acc];
-									 (K, V, Acc) when is_list(V) ->
-									 	  [erl_syntax:map_field_assoc(erl_syntax:atom(K), erl_syntax:char(V))|Acc]
-								   end, [], NetMap)).
+    erl_syntax:map_expr( maps:fold(fun(K, V, Acc) when is_integer(V) ->
+                                           [erl_syntax:map_field_assoc(erl_syntax:atom(K),
+                                                                       erl_syntax:integer(V))|Acc];
+                                      (K, V, Acc) when is_binary(V) ->
+                                           [erl_syntax:map_field_assoc(erl_syntax:atom(K),
+                                                                       erl_syntax:binary(lists:map(fun(I) ->
+                                                                                                           erl_syntax:binary_field(erl_syntax:integer(I))
+                                                                                                   end, binary_to_list(V))))|Acc];
+                                      (K, V, Acc) when is_atom(V) ->
+                                           [erl_syntax:map_field_assoc(erl_syntax:atom(K), erl_syntax:atom(V))|Acc];
+                                      (K, V, Acc) when is_list(V) ->
+                                           [erl_syntax:map_field_assoc(erl_syntax:atom(K), erl_syntax:char(V))|Acc]
+                                   end, [], NetMap)).
 
 params() ->  get_params(code:is_loaded(btr_net_prms)).
 
