@@ -106,7 +106,10 @@ check_block() ->
 
 
 testnet_block() ->
-	Block = bblock:bbdef(lib_test:term_from_file("testnetblock.bin")),
+	OldBlock = lib_test:term_from_file("testnetblock.bin"),
+	{A1,B1,C1} = OldBlock,
+	NewBlock = {A1,B1,#{},C1},
+	Block = bblock:bbdef(NewBlock),
 	Address = lib_address:new("2N4vNvrdf86CmRBPz2s4XoGkruXUaA18bx9"),
 	{ok, B} = bitter_bloom:new(3, 0.00001),
 	{ok, B2} = bitter_bloom:insert(B, lib_address:hash160(Address)),
@@ -137,9 +140,7 @@ match_t() ->
 	{ok, C} = bitter_bloom:new(3, 0.00001),
 	{ok, C2} = bitter_bloom:insert(C, lib_address:hash160(Address)),
 	MFexists = btr_match:match_helper({bloom, C2}),
-	?assert(MFexists(C2)),
-	F = lib_address:new("mpedjLPkHzQku7WQXgP5yKGUtjAh34Pysh"),
-	?debugFmt("~p~n", [hex:bin_to_hexstr(lib_address:hash160(F))]).
+	?assert(MFexists(C2)).
 
 match_test_() -> 
   {foreach,

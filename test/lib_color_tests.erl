@@ -507,7 +507,7 @@ marker_reverse() ->
 marker_toobig() ->
     A = lib_color:create_marker_output([100, 10, 9223372036854775808, 1000]),
     B = lib_parse:parse_script(A#btxout.script),
-	?assertMatch({malformed_openassets, _}, B).
+	?assertMatch({op_return, _}, B).
 
 % Interleave colored and ?Uncolored outputs
 % I'm duplicating inputs here, wouldn't normally happen
