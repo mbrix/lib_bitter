@@ -79,7 +79,10 @@
 % Normalize script to addr record
 new(Script) when is_binary(Script) ->
 	Spec = lib_parse:parse_script(Script),
-	{Type, _} = Spec,
+    Type = case Spec of
+               {T, _} -> T;
+               {T, _, _}  -> T
+           end,
 	BinaryAddress = script_to_address(Spec, Script),
 	#addr{ type = Type,
 		   bin = BinaryAddress};
@@ -307,7 +310,7 @@ script_to_address({p2pkh2, Pubkey}, _) -> key_to_hash160(Pubkey);
 script_to_address({full_pubkey, Pubkey}, _) -> key_to_hash160(Pubkey);
 script_to_address({compressed_pubkey, Pubkey}, _) -> key_to_hash160(Pubkey);
 script_to_address({malformed, _}, _) -> <<"malformed00000000000">>;
-script_to_address({p2sh, Hash}, _) -> Hash;
+script_to_address({p2sh, _Subtype, Hash}, _) -> Hash;
 script_to_address({multisig, {_, _}}, Script) -> script_to_hash160(Script);
 script_to_address({op_return, _}, _) -> <<"op_return00000000000">>; 
 script_to_address({openassets, _}, _) -> <<"openassets000000000">>;
@@ -316,6 +319,7 @@ script_to_address(_X, _) -> <<"weird000000000000000">>.
 
 info_addresses({p2pkh, Pubkey}, _) -> [Pubkey];
 info_addresses({p2pkh2, Pubkey}, _) -> [Pubkey];
+info_addresses({p2sh, _Subtype, Pubkey}, _) -> [Pubkey];
 info_addresses({full_pubkey, Pubkey}, _) -> [Pubkey];
 info_addresses({compressed_pubkey, Pubkey}, _) -> [Pubkey];
 info_addresses({malformed, _}, _) -> [];
