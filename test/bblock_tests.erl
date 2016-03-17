@@ -296,6 +296,7 @@ compare_tx() ->
                           [NextTx|T] = TxList,
                           Tx = bblock:tx(BlockRecord, Index),
                           ?assertEqual(NextTx, Tx),
+                          ?assertEqual(bblock:hash(NextTx), bblock:hash(Tx)),
                           T
                 end, Txs, lists:seq(0, length(Txs)-1)).
 

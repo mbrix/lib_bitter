@@ -478,7 +478,7 @@ tx(#bblock{data = <<_:88/binary, D/binary>>=B, meta = M}, Index) ->
 	Rest = getTransactions(Index, Tbin),
 	Offset = byte_size(B) - byte_size(Rest),
 	EndTx = getTransactions(1, Rest),
-	#btx{data = binary:part(Rest, {0, size(Rest) - size(EndTx)}),
+	#btx{data = binary:part(Rest, {0, byte_size(Rest) - byte_size(EndTx)}),
          offset = Offset,
 		 meta = get_meta(Offset, M)}.
 
