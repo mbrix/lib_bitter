@@ -41,7 +41,7 @@
 -define(WHERE, lib_notify:where(Pid, ?MODULE)).
 -define(WHEREBLOCKD, lib_notify:where(Pid, bitter_blockd)).
 
--define(Unspent_Nostate, <<0:8>>).
+-define(Unspent_Deleted, <<0:8>>).
 -define(Unspent_Confirmed, <<1:8>>).
 -define(Unspent_Unconfirmed, <<2:8>>).
 -define(Spent_Unconfirmed, <<3:8>>).
@@ -52,13 +52,19 @@
 % Always get the nearest cache
 -define(WHERECACHE, lib_notify:where(near, bitter_objcache)).
 
+% Unspent sets indexed by TX Hash
+
+-record(unspentset, {mapping}).
+-record(us, {hash_index, status, height_coinbase_output}).
+
+
 % Raw block binary formats
 
--record(bblock, {data, meta}).
--record(btx, {data, parent, meta}).
+-record(bblock, {data, ext=#{}, meta=#{}}).
+-record(btx, {data, offset, ext=#{}, meta=#{}}).
 
--record(binput, {data, parent, meta}).
--record(boutput, {data, parent, meta}).
+-record(binput, {data, offset, ext, meta}).
+-record(boutput, {data, offset, ext, meta}).
 
 
 % Expanded to nclude cumulative fields
@@ -86,7 +92,7 @@
 				txoutputs}).
 
 -record(btxin, {txhash, txindex, script = <<>>, seqnum, signed=false}).
--record(btxout, {txindex, value, script = <<>>, address="", info, color=?Uncolored, quantity=0}).
+-record(btxout, {txindex, value, script = <<>>, address="", info, attributes=#{}}).
 
 %% Extended transaction information
 
@@ -109,7 +115,7 @@
 					qlen}).
 
 % Unspent Transaction Pool
--record(utxop, {hash_index, value, script, address, info, color, quantity, height, state, coinbase}).
+-record(utxop, {hash_index, value, script, address, info, attributes=#{}, height, state, coinbase}).
 
 % Address mapping pool
 -record(address, {address, hash_index}).

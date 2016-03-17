@@ -116,9 +116,9 @@ norm(OP_X) -> OP_X - 80.
 % Script classification
 parse_script(<<?OP_DUP:8, ?OP_HASH160:8, 16#14:8, Pubkey:20/binary, ?OP_EQUALVERIFY:8, ?OP_CHECKSIG:8>>) ->
 	{p2pkh, Pubkey};
-parse_script(<<?OP_HASH160:8, 16#14:8, Hash:20/binary, ?OP_EQUAL:8>>) -> {p2sh, Hash};
+parse_script(<<?OP_HASH160:8, 16#14:8, Hash:20/binary, ?OP_EQUAL:8>>) -> {p2sh, 1, Hash};
 % P2SH classification
-parse_script(<<?OP_HASH160:8, Hash:20/binary, ?OP_EQUAL:8>>) -> {p2sh, Hash};
+parse_script(<<?OP_HASH160:8, Hash:20/binary, ?OP_EQUAL:8>>) -> {p2sh, 2, Hash};
 % Less common types
 parse_script(<<?OP_SHA256:8, Pubkey:33/binary, ?OP_EQUAL:8>>) -> {p2pkh2, Pubkey};
 parse_script(<<65:8, Pubkey:65/binary, ?OP_CHECKSIG:8>>) -> {full_pubkey, Pubkey};
@@ -177,7 +177,7 @@ parse_script(<<?OP_RETURN, B/binary>>) ->
 				{openassets, Result} -> {openassets, Result};
 				notopenassets -> parse_pushdata_script(B)
 			catch
-				_:_ -> {malformed_openassets, B}
+				_:_ -> {op_return, B}
 			end
 	end;
 
@@ -194,13 +194,14 @@ parse_pushdata_script(B) ->
 				{openassets, Result} -> {openassets, Result};
 				notopenassets -> parse_script_2(B)
 			catch
-				_:_ -> {malformed_openassets, B}
+				_:_ -> {op_return, B}
 			end
     end.
 
 strip_info_result({openassets, B}) ->
 	{openassets,B};
-strip_info_result({A,_B}) -> A.
+strip_info_result({Type,_B}) -> Type;
+strip_info_result({Type, _B, _C}) -> Type.
 
 parse_openassets(_L, <<16#4f:8, 16#41:8, 16#01, 16#00, B/binary>>) ->
 	[AssetQuantityCount, R] = getVarInt(B),
@@ -226,8 +227,7 @@ parse_oa_metadata(B) ->
 	<<D:MetaLength/binary, _/binary>> = R,
 	D.
 
-parse_script_2(B) ->
-	{op_return, B}.
+parse_script_2(B) -> {op_return, B}.
 
 getPushData(<< TXCount:8, BinRest/binary >>) when TXCount < 76 -> [TXCount, BinRest];
 getPushData(<< ?OP_PUSHDATA1:8, TXCount:8/little, BinRest/binary >>) -> [TXCount, BinRest];
@@ -295,7 +295,7 @@ getTransactions(TXCount, Tbin, Acc, Offsets, StartOffset) ->
 extract(#{magicbyte := MB}, Data) -> extract(MB, Data);
 
 extract(_Network, <<>>) -> done;
-extract(MagicByte,
+extract(MagicByteRequested,
 		<<MagicByte:32/little, 
     HeaderLength:32/little,
     VersionNumber:32/little, 
@@ -318,6 +318,10 @@ extract(MagicByte,
     TxDataOffset = 88 + (byte_size(BinRest) - byte_size(Tbin)),
    [Tdata, Rest, TxOffsets] = getTransactions(TXCount, Tbin, TxDataOffset),
    check_difficulty(hex:bin_reverse(BlockHash)),
+    if MagicByteRequested =/= MagicByte ->
+    	   lager:info("XXXXXXXXXXXXXXXXXXXXX: MAGICBYTE CORRUPTED: ~p ~p ~n", [MagicByteRequested, MagicByte]);
+    	   true -> ok
+	end,
    {ok, #bbdef{network=MagicByte,
    		       blockhash=BlockHash,
    		       headerlength=HeaderLength,
@@ -373,7 +377,7 @@ extract_header(<<MagicByte:32/little,
 
 %% Parse network headers
 headers(MagicByte, Packet) ->  
- [header_to_bbdef(MagicByte, Head) || <<Head:81/binary>> <= Packet].
+ [header_to_bbdef(MagicByte, Head) || <<Head:80/binary, 0:8>> <= Packet].
 
 header_to_bbdef(MagicByte, Bin) ->
      <<VersionNumber:32/little,
@@ -381,8 +385,7 @@ header_to_bbdef(MagicByte, Bin) ->
      MerkleRoot:32/binary, 
      TimeStamp:32/little, 
      TargetDifficulty:32/little, 
-     Nonce:32/little,
-     0:8>> = Bin,
+     Nonce:32/little>> = Bin,
 	BlockHash = crypto:hash(sha256, crypto:hash(sha256, Bin)),
      #bbdef{network = MagicByte,
      		blockhash = BlockHash,

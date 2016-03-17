@@ -85,9 +85,9 @@ unconfirmed(_) -> false.
 
 color_fun(Color) ->
 	fun(U) ->
-			case (U#utxop.color) of
-				Color -> true;
-				_ -> false
+			case lib_tx:get_attribute(color, U, false) of
+				false -> false;
+				Color -> true
 			end
 	end.
 
@@ -148,8 +148,9 @@ compare_field(address, Tx, BloomFilter) ->
 compare_field(script, Tx, BloomFilter) ->
 	lists:foreach(fun(Output) -> false = bitter_bloom:contains(BloomFilter, Output#btxout.script) end,
 				  Tx#btxdef.txoutputs);
+%% Do I want to do this? What if color is <<0>> ?
 compare_field(color, Tx, BloomFilter) ->
-	lists:foreach(fun(Output) -> false = bitter_bloom:contains(BloomFilter, Output#btxout.color) end,
+	lists:foreach(fun(Output) -> false = bitter_bloom:contains(BloomFilter, lib_tx:get_attribute(color, Output, ?Uncolored)) end,
 				  Tx#btxdef.txoutputs);
 compare_field(all, Tx, BloomFilter) ->
 	compare_field(txhash, Tx, BloomFilter),

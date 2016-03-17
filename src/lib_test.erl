@@ -115,8 +115,8 @@ output_to_unspent(Txhash, O) ->
 		   script = O#btxout.script,
 		   address = O#btxout.address,
 		   info = O#btxout.info, 
-		   color = filter_color(O#btxout.color),
-		   quantity = O#btxout.quantity,
+		   attributes = #{color => filter_color(lib_tx:get_attribute(color, O, ?Uncolored)),
+		   				  quantity => lib_tx:get_attribute(quantity, O, 0)},
 		   height = 0,
 	       state = undefined,
 	       coinbase = false}.
@@ -130,8 +130,6 @@ random_unspent(Height) ->
            script = Script,
            address = lib_address:hash160(Address),
            info = lib_parse:parse_script(Script),
-           color = ?Uncolored,
-           quantity = 0,
            height = Height,
            state = ?Unspent_Confirmed,
            coinbase = false}.
@@ -201,8 +199,6 @@ create_output(Txindex, Value, Address) when is_record(Address, addr) ->
 create_output(Txindex, Value, Address) ->
 	#btxout{txindex=Txindex,
 		    value=Value,
-		    color=?Uncolored,
-		    quantity=0,
 		    script = lib_tx:create_script(p2pkh, Address),
 		    address=Address}.
 

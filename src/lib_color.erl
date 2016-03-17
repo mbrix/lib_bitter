@@ -54,10 +54,11 @@
 	     new/0,
 	     new/1,
 	     new/2,
+	     quantity/1,
+	     color/1,
 	     from_json/1,
-	     to_json/2,
-	     to_cprism/2,
-	     to_map/2,
+	     set_color/3,
+	     erase_color/1,
 	     hash160/1,
 	     find_spend_color/2,
 	     new_spend_color/1,
@@ -67,6 +68,10 @@
 	     color_address/1,
 	     includes/2,
 	     encode_metaurl/1,
+	     to_json/2,
+	     to_map/2,
+	     to_cprism/2,
+	     to_cprism_map/2,
 	     unspent_to_ic/1]).
 
 % testing
@@ -75,10 +80,14 @@
 
 -include_lib("bitter.hrl").
 -include_lib("eunit/include/eunit.hrl").
+-include_lib("stdlib/include/ms_transform.hrl").
 
 % Open assets extended meta data support
 %
 %
+
+quantity(V) -> lib_tx:get_attribute(quantity, V, 0).
+color(V) -> lib_tx:get_attribute(color, V, ?Uncolored).
 
 val(Name, Map) ->
 	try maps:get(Name, Map) of
@@ -220,12 +229,12 @@ validate_field(_, _) -> throw(color_record_validation_error).
 from(U) when is_record(U, utxop) ->
 	% Should do color identity lookup
 	#color{name = unknown,
-		   bin = U#utxop.color};
+		   bin = lib_tx:get_attribute(color, U, ?Uncolored)};
 
-from(O) when is_record(O, btxout) ->
+from(O) when is_record(O, btxout) or is_record(O, btx) ->
 	% Should do color identity lookup
 	#color{name = unknown,
-		   bin  = O#btxout.color}.
+		   bin  = lib_tx:get_attribute(color, O, ?Uncolored)}.
 
 new() ->
 	#color{}.
@@ -253,11 +262,6 @@ new(ColorBin) when is_binary(ColorBin) ->
     #color{name = unknown,
        bin = ColorBin}.
 
-% Can't do this. Its just wrong.
-%new(I) when is_record(I, btxin) ->
-%    #color{name = unknown,
-%           bin = input_to_ic(I)}.
-
 new(binary, ColorName) ->
 	#color{name = unknown,
 		   bin = hash160(ColorName)};
@@ -267,9 +271,9 @@ new(Name, U) when is_record(U, utxop) ->
 	#color{name = Name,
 		   bin = IC};
 
-new(Name, O) when is_record(O, btxout) ->
+new(Name, O) when is_record(O, btxout) or is_record(O, boutput) ->
 	#color{name = Name,
-		   bin = O#btxout.color};
+		   bin = lib_tx:get_attribute(color, O, ?Uncolored)};
 
 % Should be binary, but occasionally non-binary in test code
 new(Name, ColorBin) ->
@@ -304,15 +308,22 @@ validate_quantity_list(QList) ->
 
 % This checks if the block or tx might be colored based on the presence
 % of the marker output.
-check_colored(Tx) when is_record(Tx, btxdef) -> has_marker(find_marker(Tx#btxdef.txoutputs));
+check_colored(Tx) when is_record(Tx, btx) or is_record(Tx, btxdef) -> has_marker(find_marker(bblock:outputs(Tx)));
+
+check_colored(Block) when is_record(Block, bblock) ->
+	try
+		bblock:foreach(fun(Btx) -> false = has_marker(find_marker(bblock:outputs(Btx))) end, Block),
+		false
+	catch _:_ -> true
+	end;
+
 check_colored(Block) when is_record(Block, bbdef) ->
     try
         lists:foreach(fun(Tx) ->
                     false = has_marker(find_marker(Tx#btxdef.txoutputs)) end,
                       Block#bbdef.txdata),
         false
-    catch
-        _:_ -> true
+    catch _:_ -> true
     end.
 
 has_marker(?Uncolored) -> false;
@@ -324,7 +335,7 @@ find_marker(O) -> find_marker(O, []).
 find_marker([], _) -> ?Uncolored;
 find_marker(Outputs, Issuance) ->
 	[H|T] = Outputs,
-	case H#btxout.info of
+	case bblock:info(H) of
 		{openassets, M} ->
 			{QList, _} = M,
 			{validate_quantity_list(QList),
@@ -399,14 +410,8 @@ do_transfers(ColorList, M, TransferOutputs, Acc) ->
 	[Output|OT] = TransferOutputs,
 	{OutputColor, NewColorList} = get_color_quant(ColorList, QuantityNeeded),
 	case OutputColor of
-		?Uncolored ->
-			do_transfers(NewColorList, MT, OT,
-				[Output#btxout{color=OutputColor,
-						       quantity=0}|Acc]);
-	    _ ->
-			do_transfers(NewColorList, MT, OT,
-				[Output#btxout{color=OutputColor,
-						       quantity=QuantityNeeded}|Acc])
+		?Uncolored -> do_transfers(NewColorList, MT, OT, [set_color(Output, OutputColor, 0)|Acc]);
+	    _ -> do_transfers(NewColorList, MT, OT, [set_color(Output, OutputColor, QuantityNeeded)|Acc])
 	end.
 
 do_issuance(IC, M, IssuedOutputs) ->
@@ -419,22 +424,25 @@ do_issuance(IC, M, IssuedOutputs, Acc) ->
 	[Q|MT] = M,
 	[O|T] = IssuedOutputs,
 	case Q of
-		0 ->
-			do_issuance(IC, MT, T, [O#btxout{color=?Uncolored,
-				                     quantity=0}|Acc]);
-		_ ->
-			do_issuance(IC, MT, T, [O#btxout{color=IC,
-				                     quantity=Q}|Acc])
+		0 -> do_issuance(IC, MT, T, [erase_color(O)|Acc]);
+		_ -> do_issuance(IC, MT, T, [set_color(O, IC, Q)|Acc])
 	end.
+
+set_color(R, Color, Quant) -> lib_tx:set_attribute(quantity, Quant, lib_tx:set_attribute(color, Color, R)).
+erase_color(R) -> lib_tx:del_attribute(quantity, lib_tx:del_attribute(color, R)).
+
 
 get_issue_color([], _) -> ?Uncolored;
 get_issue_color(Inputs, UnspentDict) ->
 	try
-		[Tx|_] = Inputs,
-		N = dict:fetch({Tx#btxin.txhash, Tx#btxin.txindex}, UnspentDict),
-		crypto:hash(ripemd160, crypto:hash(sha256, N#utxop.script))
+		[I|_] = Inputs,
+		%io:format("~p ~p ~p ~n", [bblock:hash(I), bblock:index(I), UnspentDict]),
+		N = fetch(bblock:hash(I), bblock:index(I), UnspentDict),
+		crypto:hash(ripemd160, crypto:hash(sha256, bblock:script(N)))
 	catch
-		_:_ -> throw(coloring_error)
+		E:R -> 
+			io:format("ZZZ E: ~p ~n R: ~p~n", [E, R]),
+			throw(coloring_error)
 	end.
 
 get_issue_color_unspents([]) -> ?Uncolored;
@@ -448,13 +456,12 @@ unspent_color_dict(UnspentList) ->
 unspent_color_dict([], ColorDict) -> ColorDict;
 unspent_color_dict(UnspentList, ColorDict) ->
     [H|T] = UnspentList,
-    case H#utxop.color of
+	case lib_tx:get_attribute(color, H, ?Uncolored) of
         ?Uncolored ->
             HColor = unspent_to_ic(H),
             C2 = dict:store(HColor, H, ColorDict),
             unspent_color_dict(T, C2);
-        _ ->
-            unspent_color_dict(T, ColorDict)
+        _ -> unspent_color_dict(T, ColorDict)
     end.
 
 find_spend_color(Color, Unspents) ->
@@ -520,23 +527,26 @@ color_address(ColorAddress) when is_list(ColorAddress) ->
             end
     end.
 
-uncolor_all(O) ->
-	lists:map(fun(R) -> R#btxout{color=?Uncolored, quantity=0} end, O).
+uncolor_all(O) ->  lists:map(fun(R) -> erase_color(R) end, O).
 
 build_color_list(Inputs, UnspentDict) ->
 	try
 		lists:filtermap(fun(R) -> 
-				  N =
-				  	dict:fetch({R#btxin.txhash, R#btxin.txindex}, UnspentDict),
-					case N#utxop.color of
-						?Uncolored ->
-							false;
-						_ ->
-				  			{true, {N#utxop.color, N#utxop.quantity}}
+				  N = fetch(bblock:hash(R), bblock:index(R), UnspentDict),
+				  
+					case lib_tx:get_attribute(color, N, ?Uncolored) of
+						?Uncolored -> false;
+						_ -> {true, {lib_tx:get_attribute(color, N, ?Uncolored),
+									 lib_tx:get_attribute(quantity, N, 0)}}
 					end end, Inputs)
-	catch _:_ ->
+	catch E:R ->
+			io:format("XXX E: ~p ~n R: ~p~n", [E, R]),
 			throw(coloring_error)
 	end.
+
+fetch(Hash, Index, UnspentDict) when is_record(UnspentDict, unspentset) ->
+    unspentset:lookup(Hash, Index, UnspentDict);
+fetch(Hash, Index, UnspentDict) -> dict:fetch({Hash, Index}, UnspentDict).
 
 % Is New Style color address
 is_color_address(Address) when is_list(Address) ->
@@ -546,22 +556,23 @@ is_color_address(Address) when is_list(Address) ->
 % Generate list of unique colors
 colors(Unspents) ->
 	sets:to_list(lists:foldl(fun(E, Acc) ->
-				sets:add_element(E#utxop.color, Acc) end, sets:new(), Unspents)).
+				sets:add_element(lib_tx:get_attribute(color, E, ?Uncolored), Acc) end, sets:new(), Unspents)).
 
 readable_colors(NetworkParams, Unspents) ->
 	sets:to_list(lists:foldl(fun(E, Acc) ->
-				sets:add_element(readable(NetworkParams, E#utxop.color), Acc) end, sets:new(), Unspents)).
+									 sets:add_element(readable(NetworkParams,
+									 						   lib_tx:get_attribute(color, E, ?Uncolored)), Acc)
+							 end, sets:new(), Unspents)).
 
 readable_issue_colors(NetworkParams, Unspents) ->
 	dict:to_list(lists:foldl(fun(E, Acc) ->
-                    case E#utxop.color of
-                        ?Uncolored ->
-                            dict:store(readable(NetworkParams,
-                            					unspent_to_ic(E)),
-                                      [lib_address:openassets(E),
-                                       lib_address:readable(E)], Acc);
-                        _ -> Acc
-                    end end, dict:new(), Unspents)).
+									 case lib_tx:get_attribute(color, E, ?Uncolored) of
+									 	 ?Uncolored ->
+									 	 	 dict:store(readable(NetworkParams, unspent_to_ic(E)),
+									 	 	 			[lib_address:openassets(E),
+									 	 	 			 lib_address:readable(NetworkParams, E)], Acc);
+									 	 _ -> Acc
+									 end end, dict:new(), Unspents)).
 
 % This is so that like colors are stacked
 % uncolored outputs feature last in coloring
@@ -590,36 +601,31 @@ create_marker_output(M, Meta) when is_list(M) ->
     BinMarker = encode_marker(M, MetaBin),
     validate_marker(BinMarker).
 
+%% This is ok right now, since transaction building
+%% still uses bbdef/btxdef etc
 validate_marker(B) when size(B) > 80 ->
     throw(marker_error);
 validate_marker(B) ->
 	#btxout{value = 0,
-		    color = ?Uncolored,
-		    quantity = 0,
 		    script = B,
 		    info = lib_parse:parse_script(B)}.
 
 marker(P) when is_record(P, payment) ->
 	L = lists:takewhile(fun(E) ->
-					case E#btxout.color of
-						?Uncolored ->
-							false;
-						_ ->
-							true
-					end end, P#payment.outputs),
-	M = lists:map(fun(E) ->
-					E#btxout.quantity
-				  end, L),
+								case lib_tx:get_attribute(color, E, ?Uncolored) of
+									?Uncolored -> false;
+									_ -> true
+								end end, P#payment.outputs),
+	M = lists:map(fun(E) -> lib_tx:get_attribute(quantity, E, 0) end, L),
 	insert_marker(P, create_marker_output(M, P#payment.metaurl));
 
 % Iterate over O until marker is found
 % or return error
-marker(Tx) when is_record(Tx, btxdef) ->
-	marker(Tx#btxdef.txoutputs);
+marker(Btx) when is_record(Btx, btx) or is_record(Btx, btxdef) -> marker(bblock:outputs(Btx));
 marker([]) -> error;
 marker(O) when is_list(O) ->
 	[H|T] = O,
-	case H#btxout.info of
+	case bblock:info(H) of
 		{openassets, M} -> M;
 		_ -> marker(T)
 	end.
@@ -630,10 +636,10 @@ meta(O) ->
 		_ -> error
 	end.
 
-meta_url(Tx) when is_record(Tx, btxdef) ->
-    meta_url(Tx#btxdef.txoutputs);
+meta_url(Outputs) when is_list(Outputs) -> do_meta_url(Outputs);
+meta_url(Tx) -> do_meta_url(bblock:outputs(Tx)).
 
-meta_url(O) ->
+do_meta_url(O) ->
     [H|_] = O,
     % If the metainfo is the first output, then this is a transfer only
     % and we shouldn't return a URL for this asset.
@@ -668,14 +674,10 @@ insert_marker(P, M) ->
 
 is_colored(Outputs) when is_list(Outputs) ->
 	UncoloredOutputs = lists:takewhile(fun(E) ->
-			case E#btxout.color of
-				?Uncolored ->
-					true;
-				_ ->
-					false
-			end end, Outputs),
-	if (length(UncoloredOutputs) < length(Outputs)) ->
-			true;
-		true ->
-			false
+											   case lib_tx:get_attribute(color, E, ?Uncolored) of
+											   	   ?Uncolored -> true;
+											   	   _ -> false
+											   end end, Outputs),
+	if (length(UncoloredOutputs) < length(Outputs)) -> true;
+		true -> false
 	end.

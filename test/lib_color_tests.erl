@@ -81,7 +81,8 @@ uncolor_outputs() ->
 	NewOutputs = lib_color:uncolor_all(Outputs),
 	lists:foldl(fun(X,_) -> 
 				?assertMatch({?Uncolored, 0},
-					         {X#btxout.color, X#btxout.quantity}),
+					         {lib_color:color(X),
+							  lib_color:quantity(X)}), 
 				[] end, [], NewOutputs).
 
 issue_color() ->
@@ -187,8 +188,8 @@ simple_issuance() ->
 	[H|_] = IssuedOutputs,
 	?assertEqual(1, length(IssuedOutputs)),
 	?assertEqual([], RColorList),
-	?assertEqual(IC, H#btxout.color),
-	?assertEqual(100, H#btxout.quantity).
+	?assertEqual(IC, lib_color:color(H)),
+	?assertEqual(100, lib_color:quantity(H)). 
 
 multiple_issuance() ->
 	Inputs = colored_inputs(red),
@@ -202,9 +203,9 @@ multiple_issuance() ->
 	[H3|_] = T2,
 	?assertEqual(3, length(IssuedOutputs)),
 	?assertEqual([99999], RColorList),
-	?assertEqual(100, H#btxout.quantity),
-	?assertEqual(1000, H2#btxout.quantity),
-	?assertEqual(10000, H3#btxout.quantity).
+	?assertEqual(100, lib_color:quantity(H)),
+	?assertEqual(1000, lib_color:quantity(H2)),
+	?assertEqual(10000, lib_color:quantity(H3)). 
 
 uncolored_issuance() ->
 	Inputs = colored_inputs(red),
@@ -214,8 +215,8 @@ uncolored_issuance() ->
 	Outputs = [create_output(), create_output(blue, 0, 1)],
 	{_, IssuedOutputs} = lib_color:do_issuance(IC, QList, Outputs),
 	[_|[T]] = IssuedOutputs,
-	?assertEqual(0, T#btxout.quantity),
-	?assertEqual(?Uncolored, T#btxout.color).
+	?assertEqual(0, lib_color:quantity(T)), 
+	?assertEqual(?Uncolored, lib_color:color(T)). 
 
 empty_marker_issue() ->
 	Inputs = colored_inputs(red),
@@ -225,8 +226,8 @@ empty_marker_issue() ->
 	Outputs = [create_output(red, 10000, 0), create_output(blue, 100, 1)],
 	{_, IssuedOutputs} = lib_color:do_issuance(IC, QList, Outputs),
 	[H|_T] = IssuedOutputs,
-	?assertEqual(0, H#btxout.quantity),
-	?assertEqual(?Uncolored, H#btxout.color).
+	?assertEqual(0, lib_color:quantity(H)), 
+	?assertEqual(?Uncolored, lib_color:color(H)). 
 
 %% Transfer tests
 
@@ -240,8 +241,8 @@ one_transfer() ->
 	%?debugFmt("~p~n", [IssuedOutputs]),
 	[H|_] = TransferOutputs,
 	?assertEqual(1, length(TransferOutputs)),
-	?assertEqual(red, H#btxout.color),
-	?assertEqual(100, H#btxout.quantity).
+	?assertEqual(red, lib_color:color(H)), 
+	?assertEqual(100, lib_color:quantity(H)). 
 
 multiple_transfers() ->
 	Inputs = colored_inputs(red) ++ colored_inputs(blue) ++ colored_inputs(?Uncolored),
@@ -261,23 +262,23 @@ multiple_transfers() ->
 	%?debugFmt("~p~n", [IssuedOutputs]),
 	[H|T] = TransferOutputs,
 	?assertEqual(6, length(TransferOutputs)),
-	?assertEqual(red, H#btxout.color),
-	?assertEqual(TotalRed-100, H#btxout.quantity),
+	?assertEqual(red, lib_color:color(H)), 
+	?assertEqual(TotalRed-100, lib_color:quantity(H)), 
 	[H2|T2] = T,
-	?assertEqual(red, H2#btxout.color),
-	?assertEqual(100, H2#btxout.quantity),
+	?assertEqual(red, lib_color:color(H2)), 
+	?assertEqual(100, lib_color:quantity(H2)),
 	[H3|T3] = T2,
-	?assertEqual(blue, H3#btxout.color),
-	?assertEqual(TotalBlue-100, H3#btxout.quantity),
+	?assertEqual(blue, lib_color:color(H3)),
+	?assertEqual(TotalBlue-100, lib_color:quantity(H3)), 
 	[H4|T4] = T3,
-	?assertEqual(blue, H4#btxout.color),
-	?assertEqual(100, H4#btxout.quantity),
+	?assertEqual(blue, lib_color:color(H4)), 
+	?assertEqual(100, lib_color:quantity(H4)), 
 	[H5|T5] = T4,
-	?assertEqual(?Uncolored, H5#btxout.color),
-	?assertEqual(0, H5#btxout.quantity),
+	?assertEqual(?Uncolored, lib_color:color(H5)), 
+	?assertEqual(0, lib_color:quantity(H5)), 
 	[H6|_T6] = T5,
-	?assertEqual(?Uncolored, H6#btxout.color),
-	?assertEqual(0, H6#btxout.quantity).
+	?assertEqual(?Uncolored, lib_color:color(H6)), 
+	?assertEqual(0, lib_color:quantity(H6)). 
 
 multiple_boundary_transfers() ->
 	Inputs = colored_inputs(red) ++ colored_inputs(blue) ++ colored_inputs(?Uncolored),
@@ -296,20 +297,20 @@ multiple_boundary_transfers() ->
 	%?debugFmt("~p~n", [IssuedOutputs]),
 	[H|T] = TransferOutputs,
 	?assertEqual(5, length(TransferOutputs)),
-	?assertEqual(red, H#btxout.color),
-	?assertEqual(1, H#btxout.quantity),
+	?assertEqual(red, lib_color:color(H)),
+	?assertEqual(1, lib_color:quantity(H)),
 	[H2|T2] = T,
-	?assertEqual(red, H2#btxout.color),
-	?assertEqual(1000, H2#btxout.quantity),
+	?assertEqual(red, lib_color:color(H2)), 
+	?assertEqual(1000, lib_color:quantity(H2)), 
 	[H3|T3] = T2,
-	?assertEqual(red, H3#btxout.color),
-	?assertEqual(TotalRed-1001, H3#btxout.quantity),
+	?assertEqual(red, lib_color:color(H3)), 
+	?assertEqual(TotalRed-1001, lib_color:quantity(H3)),
 	[H4|T4] = T3,
-	?assertEqual(?Uncolored, H4#btxout.color),
-	?assertEqual(0, H4#btxout.quantity),
+	?assertEqual(?Uncolored, lib_color:color(H4)), 
+	?assertEqual(0, lib_color:quantity(H4)), 
 	[H5|_] = T4,
-	?assertEqual(?Uncolored, H5#btxout.color),
-	?assertEqual(0, H5#btxout.quantity).
+	?assertEqual(?Uncolored, lib_color:color(H5)),
+	?assertEqual(0, lib_color:quantity(H5)). 
 
 full_color_issuance_only() ->
 	Inputs = colored_inputs(red),
@@ -327,20 +328,20 @@ full_color_issuance_only() ->
 	%?debugFmt("~p~n", [IssuedOutputs]),
 	[H|T] = TransferOutputs,
 	?assertEqual(5, length(TransferOutputs)),
-	?assertEqual(IC, H#btxout.color),
-	?assertEqual(100, H#btxout.quantity),
+	?assertEqual(IC, lib_color:color(H)), 
+	?assertEqual(100, lib_color:quantity(H)),
 	[H2|T2] = T,
-	?assertEqual(IC, H2#btxout.color),
-	?assertEqual(100, H2#btxout.quantity),
+	?assertEqual(IC, lib_color:color(H2)), 
+	?assertEqual(100, lib_color:quantity(H2)), 
 	[H3|T3] = T2,
-	?assertEqual(IC, H3#btxout.color),
-	?assertEqual(100, H3#btxout.quantity),
+	?assertEqual(IC, lib_color:color(H3)), 
+	?assertEqual(100, lib_color:quantity(H3)), 
 	[H4|T4] = T3,
-	?assertEqual(IC, H4#btxout.color),
-	?assertEqual(100, H4#btxout.quantity),
+	?assertEqual(IC, lib_color:color(H4)), 
+	?assertEqual(100, lib_color:quantity(H4)), 
 	[H5|_] = T4,
-	?assertEqual(?Uncolored, H5#btxout.color),
-	?assertEqual(0, H5#btxout.quantity).
+	?assertEqual(?Uncolored, lib_color:color(H5)), 
+	?assertEqual(0, lib_color:quantity(H5)). 
 
 full_color_transfer() ->
 	Inputs = colored_inputs(red),
@@ -355,14 +356,14 @@ full_color_transfer() ->
 	%?debugFmt("~p~n", [IssuedOutputs]),
 	[H|T] = TransferOutputs,
 	?assertEqual(3, length(TransferOutputs)),
-	?assertEqual(?Uncolored, H#btxout.color),
-	?assertEqual(0, H#btxout.quantity),
+	?assertEqual(?Uncolored, lib_color:color(H)), 
+	?assertEqual(0, lib_color:quantity(H)), 
 	[H2|T2] = T,
-	?assertEqual(red, H2#btxout.color),
-	?assertEqual(1000, H2#btxout.quantity),
+	?assertEqual(red, lib_color:color(H2)), 
+	?assertEqual(1000, lib_color:quantity(H2)), 
 	[H3|_T3] = T2,
-	?assertEqual(red, H3#btxout.color),
-	?assertEqual(100, H3#btxout.quantity).
+	?assertEqual(red, lib_color:color(H3)), 
+	?assertEqual(100, lib_color:quantity(H3)). 
 
 multi_color_transfer_issue() ->
 	Inputs = colored_inputs(red) ++ colored_inputs(blue),
@@ -381,26 +382,26 @@ multi_color_transfer_issue() ->
 	TransferOutputs = lib_color:color_outputs(Inputs, O, Unspents),
 	[H|T] = TransferOutputs,
 	?assertEqual(7, length(TransferOutputs)),
-	?assertEqual(IC, H#btxout.color),
-	?assertEqual(100000, H#btxout.quantity),
+	?assertEqual(IC, lib_color:color(H)),
+	?assertEqual(100000, lib_color:quantity(H)),
 	[H2|T2] = T,
-	?assertEqual(IC, H2#btxout.color),
-	?assertEqual(1000, H2#btxout.quantity),
+	?assertEqual(IC, lib_color:color(H2)),
+	?assertEqual(1000, lib_color:quantity(H2)), 
 	[H3|T3] = T2,
-	?assertEqual(?Uncolored, H3#btxout.color), %% Marker
-	?assertEqual(0, H3#btxout.quantity),
+	?assertEqual(?Uncolored, lib_color:color(H3)),  %% Marker
+	?assertEqual(0, lib_color:quantity(H3)), 
 	[H4|T4] = T3,
-	?assertEqual(red, H4#btxout.color),
-	?assertEqual(2901,  H4#btxout.quantity),
+	?assertEqual(red, lib_color:color(H4)), 
+	?assertEqual(2901,  lib_color:quantity(H4)), 
 	[H5|T5] = T4,
-	?assertEqual(blue, H5#btxout.color),
-	?assertEqual(100, H5#btxout.quantity),
+	?assertEqual(blue, lib_color:color(H5)), 
+	?assertEqual(100, lib_color:quantity(H5)), 
 	[H6|T6] = T5,
-	?assertEqual(?Uncolored, H6#btxout.color),
-	?assertEqual(0, H6#btxout.quantity),
+	?assertEqual(?Uncolored, lib_color:color(H6)), 
+	?assertEqual(0, lib_color:quantity(H6)), 
 	[H7|_T7] = T6,
-	?assertEqual(?Uncolored, H7#btxout.color),
-	?assertEqual(0, H7#btxout.quantity).
+	?assertEqual(?Uncolored, lib_color:color(H7)), 
+	?assertEqual(0, lib_color:quantity(H7)). 
 
 rainbow_colors() ->
 	Inputs = colored_inputs(red) ++
@@ -428,29 +429,29 @@ rainbow_colors() ->
 	TransferOutputs = lib_color:color_outputs(Inputs, O, Unspents),
 	[H|T] = TransferOutputs,
 	?assertEqual(8, length(TransferOutputs)),
-	?assertEqual(?Uncolored, H#btxout.color), % Marker
-	?assertEqual(0, H#btxout.quantity),
+	?assertEqual(?Uncolored, lib_color:color(H)), % Marker
+	?assertEqual(0, lib_color:quantity(H)),
 	[H2|T2] = T,
-	?assertEqual(red, H2#btxout.color),
-	?assertEqual(TRed,H2#btxout.quantity),
+	?assertEqual(red, lib_color:color(H2)),
+	?assertEqual(TRed,lib_color:quantity(H2)),
 	[H3|T3] = T2,
-	?assertEqual(blue, H3#btxout.color),
-	?assertEqual(TBlue, H3#btxout.quantity),
+	?assertEqual(blue, lib_color:color(H3)),
+	?assertEqual(TBlue, lib_color:quantity(H3)), 
 	[H4|T4] = T3,
-	?assertEqual(red, H4#btxout.color),
-	?assertEqual(TRed, H4#btxout.quantity),
+	?assertEqual(red, lib_color:color(H4)), 
+	?assertEqual(TRed, lib_color:quantity(H4)), 
 	[H5|T5] = T4,
-	?assertEqual(purple, H5#btxout.color),
-	?assertEqual(TPurple, H5#btxout.quantity),
+	?assertEqual(purple, lib_color:color(H5)), 
+	?assertEqual(TPurple, lib_color:quantity(H5)), 
 	[H6|T6] = T5,
-	?assertEqual(black, H6#btxout.color),
-	?assertEqual(TBlack, H6#btxout.quantity),
+	?assertEqual(black, lib_color:color(H6)), 
+	?assertEqual(TBlack, lib_color:quantity(H6)), 
 	[H7|T7] = T6,
-	?assertEqual(?Uncolored, H7#btxout.color),
-	?assertEqual(0, H7#btxout.quantity),
+	?assertEqual(?Uncolored, lib_color:color(H7)), 
+	?assertEqual(0, lib_color:quantity(H7)), 
 	[H8|_T8] = T7,
-	?assertEqual(?Uncolored, H8#btxout.color), 
-	?assertEqual(0, H8#btxout.quantity).
+	?assertEqual(?Uncolored, lib_color:color(H8)), 
+	?assertEqual(0, lib_color:quantity(H8)). 
 
 
 nefarious_markers() ->
@@ -465,11 +466,11 @@ nefarious_markers() ->
 	TransferOutputs = lib_color:color_outputs(Inputs, O, Unspents),
 	[H|T] = TransferOutputs,
 	?assertEqual(3, length(TransferOutputs)),
-	?assertEqual(0, H#btxout.quantity),
-	?assertEqual(?Uncolored, H#btxout.color), % Marker
+	?assertEqual(0, lib_color:quantity(H)),
+	?assertEqual(?Uncolored, lib_color:color(H)), % Marker
 	[H2|_T2] = T,
-	?assertEqual(?Uncolored, H2#btxout.color),
-	?assertEqual(0,H2#btxout.quantity).
+	?assertEqual(?Uncolored, lib_color:color(H2)),
+	?assertEqual(0,lib_color:quantity(H2)).
 
 color_quantity() ->
 	Unspents = colored_outputs(red),
@@ -532,23 +533,23 @@ interleave() ->
 	TransferOutputs = lib_color:color_outputs(Inputs, O, Unspents),
 	[H|T] = TransferOutputs,
 	?assertEqual(6, length(TransferOutputs)),
-	?assertEqual(?Uncolored, H#btxout.color), % Marker
-	?assertEqual(0, H#btxout.quantity),
+	?assertEqual(?Uncolored, lib_color:color(H)), % Marker
+	?assertEqual(0, lib_color:quantity(H)),
 	[H2|T2] = T,
-	?assertEqual(red, H2#btxout.color),
-	?assertEqual(TRed,H2#btxout.quantity),
+	?assertEqual(red, lib_color:color(H2)),
+	?assertEqual(TRed,lib_color:quantity(H2)),
 	[H3|T3] = T2,
-	?assertEqual(?Uncolored, H3#btxout.color),
-	?assertEqual(0, H3#btxout.quantity),
+	?assertEqual(?Uncolored, lib_color:color(H3)),
+	?assertEqual(0, lib_color:quantity(H3)), 
 	[H4|T4] = T3,
-	?assertEqual(red, H4#btxout.color),
-	?assertEqual(TRed, H4#btxout.quantity),
+	?assertEqual(red, lib_color:color(H4)), 
+	?assertEqual(TRed, lib_color:quantity(H4)), 
 	[H5|T5] = T4,
-	?assertEqual(?Uncolored, H5#btxout.color),
-	?assertEqual(0, H5#btxout.quantity),
+	?assertEqual(?Uncolored, lib_color:color(H5)), 
+	?assertEqual(0, lib_color:quantity(H5)), 
 	[H6|_T6] = T5,
-	?assertEqual(black, H6#btxout.color),
-	?assertEqual(TBlack, H6#btxout.quantity).
+	?assertEqual(black, lib_color:color(H6)), 
+	?assertEqual(TBlack, lib_color:quantity(H6)). 
 
 partial_interleave() ->
 	Inputs = colored_inputs(red) ++
@@ -571,20 +572,20 @@ partial_interleave() ->
 	TransferOutputs = lib_color:color_outputs(Inputs, O, Unspents),
 	[H|T] = TransferOutputs,
 	?assertEqual(5, length(TransferOutputs)),
-	?assertEqual(?Uncolored, H#btxout.color), % Marker
-	?assertEqual(0, H#btxout.quantity),
+	?assertEqual(?Uncolored, lib_color:color(H)), % Marker
+	?assertEqual(0, lib_color:quantity(H)),
 	[H2|T2] = T,
-	?assertEqual(red, H2#btxout.color),
-	?assertEqual(TRed*2,H2#btxout.quantity),
+	?assertEqual(red, lib_color:color(H2)),
+	?assertEqual(TRed*2,lib_color:quantity(H2)),
 	[H3|T3] = T2,
-	?assertEqual(?Uncolored, H3#btxout.color),
-	?assertEqual(0, H3#btxout.quantity),
+	?assertEqual(?Uncolored, lib_color:color(H3)),
+	?assertEqual(0, lib_color:quantity(H3)), 
 	[H4|T4] = T3,
-	?assertEqual(?Uncolored, H4#btxout.color),
-	?assertEqual(0, H4#btxout.quantity),
+	?assertEqual(?Uncolored, lib_color:color(H4)), 
+	?assertEqual(0, lib_color:quantity(H4)), 
 	[H5|_T5] = T4,
-	?assertEqual(black, H5#btxout.color),
-	?assertEqual(TBlack, H5#btxout.quantity).
+	?assertEqual(black, lib_color:color(H5)), 
+	?assertEqual(TBlack, lib_color:quantity(H5)). 
 
 uncolored_issue_transfer() ->
 	Inputs = colored_inputs(?Uncolored) ++ colored_inputs(red),
@@ -601,20 +602,20 @@ uncolored_issue_transfer() ->
 	TransferOutputs = lib_color:color_outputs(Inputs, O, Unspents),
 	[H|T] = TransferOutputs,
 	?assertEqual(5, length(TransferOutputs)),
-	?assertEqual(IC, H#btxout.color),
-	?assertEqual(100000, H#btxout.quantity),
+	?assertEqual(IC, lib_color:color(H)),
+	?assertEqual(100000, lib_color:quantity(H)),
 	[H2|T2] = T,
-	?assertEqual(IC, H2#btxout.color),
-	?assertEqual(10000, H2#btxout.quantity),
+	?assertEqual(IC, lib_color:color(H2)),
+	?assertEqual(10000, lib_color:quantity(H2)),
 	[H3|T3] = T2,
-	?assertEqual(?Uncolored, H3#btxout.color), %% Marker
-	?assertEqual(0, H3#btxout.quantity),
+	?assertEqual(?Uncolored, lib_color:color(H3)), %% Marker
+	?assertEqual(0, lib_color:quantity(H3)), 
 	[H4|T4] = T3,
-	?assertEqual(red, H4#btxout.color),
-	?assertEqual(2900,  H4#btxout.quantity),
+	?assertEqual(red, lib_color:color(H4)), 
+	?assertEqual(2900,  lib_color:quantity(H4)), 
 	[H5|_T5] = T4,
-	?assertEqual(red, H5#btxout.color),
-	?assertEqual(1, H5#btxout.quantity).
+	?assertEqual(red, lib_color:color(H5)), 
+	?assertEqual(1, lib_color:quantity(H5)).
 
 colored_issue_transfer() ->
 	Inputs = colored_inputs(red) ++ colored_inputs(blue),
@@ -634,20 +635,20 @@ colored_issue_transfer() ->
 	TransferOutputs = lib_color:color_outputs(Inputs, O, Unspents),
 	[H|T] = TransferOutputs,
 	?assertEqual(5, length(TransferOutputs)),
-	?assertEqual(IC, H#btxout.color),
-	?assertEqual(100000, H#btxout.quantity),
+	?assertEqual(IC, lib_color:color(H)),
+	?assertEqual(100000, lib_color:quantity(H)),
 	[H2|T2] = T,
-	?assertEqual(IC, H2#btxout.color),
-	?assertEqual(100, H2#btxout.quantity),
+	?assertEqual(IC, lib_color:color(H2)),
+	?assertEqual(100, lib_color:quantity(H2)),
 	[H3|T3] = T2,
-	?assertEqual(?Uncolored, H3#btxout.color), %% Marker
-	?assertEqual(0, H3#btxout.quantity),
+	?assertEqual(?Uncolored, lib_color:color(H3)), %% Marker
+	?assertEqual(0, lib_color:quantity(H3)), 
 	[H4|T4] = T3,
-	?assertEqual(red, H4#btxout.color),
-	?assertEqual(TRed,  H4#btxout.quantity),
+	?assertEqual(red, lib_color:color(H4)), 
+	?assertEqual(TRed,  lib_color:quantity(H4)), 
 	[H5|_T5] = T4,
-	?assertEqual(blue, H5#btxout.color),
-	?assertEqual(TBlue, H5#btxout.quantity).
+	?assertEqual(blue, lib_color:color(H5)), 
+	?assertEqual(TBlue, lib_color:quantity(H5)). 
 
 
 % Marker tries to color outputs that don't exist
@@ -666,17 +667,17 @@ marker_overrun() ->
 	TransferOutputs = lib_color:color_outputs(Inputs, O, Unspents),
 	[H|T] = TransferOutputs,
 	?assertEqual(4, length(TransferOutputs)),
-	?assertEqual(IC, H#btxout.color),
-	?assertEqual(100000, H#btxout.quantity),
+	?assertEqual(IC, lib_color:color(H)),
+	?assertEqual(100000, lib_color:quantity(H)),
 	[H2|T2] = T,
-	?assertEqual(IC, H2#btxout.color),
-	?assertEqual(10000, H2#btxout.quantity),
+	?assertEqual(IC, lib_color:color(H2)),
+	?assertEqual(10000, lib_color:quantity(H2)),
 	[H3|T3] = T2,
-	?assertEqual(?Uncolored, H3#btxout.color), %% Marker
-	?assertEqual(0, H3#btxout.quantity),
+	?assertEqual(?Uncolored, lib_color:color(H3)), %% Marker
+	?assertEqual(0, lib_color:quantity(H3)), 
 	[H4|_T4] = T3,
-	?assertEqual(red, H4#btxout.color),
-	?assertEqual(2800,  H4#btxout.quantity).
+	?assertEqual(red, lib_color:color(H4)), 
+	?assertEqual(2800,  lib_color:quantity(H4)). 
 
 % Shouldn't happen, but maybe if a colored output was
 % inserted into a coinbase transaction....
@@ -694,8 +695,8 @@ marker_no_input() ->
 	TransferOutputs = lib_color:color_outputs(Inputs, O, Unspents),
 	[H|_T] = TransferOutputs,
 	?assertEqual(4, length(TransferOutputs)),
-	?assertEqual(?Uncolored, H#btxout.color),
-	?assertEqual(0, H#btxout.quantity).
+	?assertEqual(?Uncolored, lib_color:color(H)),
+	?assertEqual(0, lib_color:quantity(H)).
 
 % This would be a malformed a malicious marker set
 % Should we color like normal or discard?
@@ -719,14 +720,14 @@ multiple_markers() ->
 	TransferOutputs = lib_color:color_outputs(Inputs, O, Unspents),
 	[H|T] = TransferOutputs,
 	?assertEqual(4, length(TransferOutputs)),
-	?assertEqual(IC, H#btxout.color),
-	?assertEqual(100000, H#btxout.quantity),
+	?assertEqual(IC, lib_color:color(H)),
+	?assertEqual(100000, lib_color:quantity(H)),
 	[H2|T2] = T,
-	?assertEqual(?Uncolored, H2#btxout.color), %% Marker 1
-	?assertEqual(0, H2#btxout.quantity),
+	?assertEqual(?Uncolored, lib_color:color(H2)), %% Marker 1
+	?assertEqual(0, lib_color:quantity(H2)), 
 	[H3|_T3] = T2,
-	?assertEqual(red, H3#btxout.color), %% Marker 2
-	?assertEqual(2800, H3#btxout.quantity).
+	?assertEqual(red, lib_color:color(H3)),  %% Marker 2
+	?assertEqual(2800, lib_color:quantity(H3)).
 
 
 is_colored() ->
@@ -1055,11 +1056,9 @@ colored_inputs(Color) ->
 
 colored_outputs(Color) ->
 	ets:foldl(fun(Output, Acc) -> 
-		case Output#utxop.color of
-			Color ->
-				[Output|Acc];
-			_ ->
-				Acc
+					  case lib_color:color(Output) of
+					  	  Color -> [Output|Acc];
+					  	  _ -> Acc
 		end
 	end, [], fakeutxo).
 
@@ -1077,12 +1076,10 @@ create_outputs(Color, ColorQuant, Num) ->
 
 create_output() -> create_output(?Uncolored, 0, 0).
 create_output(Color, ColorQuant, Txindex) ->
-	#btxout{txindex=Txindex,
+	lib_color:set_color(#btxout{txindex=Txindex,
 		    value=50000,
 		    script=crypto:rand_bytes(20),
-			color=Color,
-			quantity=ColorQuant,
-		    address=lib_address:address_to_hash160("15MLJpjve5pjPD5aTyK1aBRZ2aW8Vwcwyx")}.
+		    address=lib_address:address_to_hash160("15MLJpjve5pjPD5aTyK1aBRZ2aW8Vwcwyx")}, Color, ColorQuant).
 
 %%% Block injection
 %%% Let's inject the colors of the Rainbow!

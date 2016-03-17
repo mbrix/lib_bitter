@@ -74,7 +74,7 @@ colors(tx, [Tx|T], Colors) ->
 	colors(tx, T, colors(outputs, Tx#btxdef.txoutputs, Colors));
 colors(outputs, [], Colors) -> Colors;
 colors(outputs, [O|T], Colors) ->
-	colors(outputs, T, maps:put(lib_color:readable(O#btxout.color), 0, Colors)).
+	colors(outputs, T, maps:put(lib_color:readable(lib_tx:get_attribute(color, O, ?Uncolored)), 0, Colors)).
 
 readable_hash(binary, Hash) ->
 	iolist_to_binary(readable_hash(Hash)).
@@ -204,8 +204,8 @@ color_serialize_outputs(Outputs, BinAcc) ->
     color_serialize_outputs(T, [[OutputColor, Quant]|BinAcc]).
 
 color_output(O) ->
-    [get_output_color(O#btxout.color),
-     get_output_quant(O#btxout.quantity)].
+    [get_output_color(lib_tx:get_attribute(color, O, ?Uncolored)),
+     get_output_quant(lib_tx:get_attribute(quantity, O, 0))].
 
 get_output_color(?Uncolored) -> <<?UNCOLORED:8>>;
 get_output_color(<<0:1>>) -> <<?UNCOLORED:8>>;
@@ -245,8 +245,12 @@ recolor_outputs([], ColorBin, Acc) -> {lists:reverse(Acc), ColorBin};
 recolor_outputs(Outputs, ColorBin, Acc) ->
     [H|T] = Outputs,
     {Color, Quant, Rest} = next_color_quant(ColorBin),
-    recolor_outputs(T, Rest, [H#btxout{color = Color,
-                                       quantity = Quant}|Acc]).
+    Attributes = case Color of
+    				 ?Uncolored -> #{};
+    				 _ -> #{color => Color,
+    				 	    quantity => Quant}
+				 end,
+    recolor_outputs(T, Rest, [H#btxout{attributes = Attributes}|Acc]).
 
 next_color_quant(<<>>) -> throw(color_deserialize_error);
 next_color_quant(<<?UNCOLORED:8, Rest/binary>>) ->

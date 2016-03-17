@@ -51,7 +51,8 @@ to_map(NetworkParams, UnspentList, Height) when is_list(UnspentList) ->
                 TxHash = iolist_to_binary(hex:bin_to_hexstr(hex:bin_reverse(Hash))),
                 Address = lib_address:readable(binary, NetworkParams, AddressRecord),
                 ScriptPubKey = iolist_to_binary(hex:bin_to_hexstr(E#utxop.script)),
-                Color = to_readable(lib_color:readable(binary, NetworkParams, E#utxop.color)),
+				#{} = E#utxop.attributes,
+                Color = to_readable(lib_color:readable(binary, NetworkParams, lib_tx:get_attribute(color, E, ?Uncolored))),
                 Confirmations = Height - E#utxop.height,
                 #{txid => TxHash,
                   vout => Index,
@@ -60,8 +61,9 @@ to_map(NetworkParams, UnspentList, Height) when is_list(UnspentList) ->
                   amount => lib_transact:satoshi_to_btc(E#utxop.value),
                   confirmations => Confirmations,
                   height => Height,
-                  color => Color,
-                  quantity => E#utxop.quantity}
+                  attributes => #{color => Color,
+                  				  quantity => lib_tx:get_attribute(quantity, E, 0)}
+				 }
         end, UnspentList).
 
 to_readable(A) when is_atom(A) -> A;
@@ -102,11 +104,9 @@ filter_by_color(UnspentList, any) -> UnspentList;
 filter_by_color(UnspentList, Color) ->
     C = lib_color:new(Color),
     ColorBin = lib_color:hash160(C),
-    lists:filter(fun(E) ->
-                E#utxop.color =:= ColorBin
+    lists:filter(fun(E) -> lib_tx:get_attribute(color, E, ?Uncolored) =:= ColorBin
         end, UnspentList).
 
 filter_by_quantity(UnspentList, Quantity) ->
-    lists:filter(fun(E) ->
-                E#utxop.quantity >= Quantity
+    lists:filter(fun(E) -> lib_tx:get_attribute(quantity, E, 0) >= Quantity
         end, UnspentList).

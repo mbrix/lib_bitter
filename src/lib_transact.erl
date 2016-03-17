@@ -158,7 +158,14 @@ metaurl(P, Url) when is_record(P, payment) ->
 
 % Uncolored unspent
 
-issue(Payment, Unspent = #utxop{color = ?Uncolored}, Payee) ->
+check_for_colored(U) ->
+	case lib_tx:get_attribute(color, U, ?Uncolored) of
+		?Uncolored -> true;
+		_ -> throw(issue_error)
+	end.
+
+issue(Payment, Unspent, Payee) ->
+	check_for_colored(Unspent),
 	if Payment#payment.issuances =/= 0 ->
 			throw(issue_error);
 	   true ->
@@ -170,14 +177,7 @@ issue(Payment, Unspent = #utxop{color = ?Uncolored}, Payee) ->
 	   		    			[O],
 	   		    	        r_value = Unspent#utxop.value - O#btxout.value,
 	   		    	        r_color = ?Uncolored}
-	end;
-
-
-% Let's simplify this and not use colored unspents
-% for issuance. Colored unspents can only be used for
-% transfer.
-issue(_P,  _U, _P) ->
-	throw(issue_error).
+	end.
 
 issue(Payment, Payee) ->
 	if Payment#payment.issuances =:= 0 ->
@@ -418,9 +418,11 @@ value(?Uncolored, Outputs) when is_list(Outputs) ->
 		get_value(O) + Sum
 	end, 0, Outputs).
 
-get_available_value(#utxop{color = ?Uncolored} = O) -> O#utxop.value;
-get_available_value(#btxout{color = ?Uncolored} = O) -> O#btxout.value;
-get_available_value(_) -> 0.
+get_available_value(V) -> get_available_value(lib_tx:get_attribute(color, V, ?Uncolored), V).
+
+get_available_value(?Uncolored, #utxop{value = V}) -> V;
+get_available_value(?Uncolored, #btxout{value = V}) -> V;
+get_available_value(_, _) -> 0.
 
 available(?Uncolored, Outputs) when is_list(Outputs) ->
 	lists:foldl(fun(O, Sum) ->
@@ -467,16 +469,14 @@ get_inputs(list,
     %?debugFmt("Pcolor: ~p ~n", [?Uncolored]),
     %?debugFmt("U: ~p~n", [UnspentList]),
 	lists:foldl(fun(U, {UL, SL, Total}) ->
-				case U#utxop.color of
-				    ?Uncolored ->
-						if Total =< Payee#payee.value ->
-							{UL, [U|SL], Total + U#utxop.value};
-				   		true ->
-				   			{[U|UL], SL, Total}
-						end;
-				    _ ->
-				    	{[U|UL], SL, Total}
-				end end, {[], [], Remainder}, UnspentList);
+						case lib_tx:get_attribute(color, U, ?Uncolored) of
+							?Uncolored ->
+								if Total =< Payee#payee.value ->
+									   {UL, [U|SL], Total + U#utxop.value};
+								   true -> {[U|UL], SL, Total}
+								end;
+							_ -> {[U|UL], SL, Total}
+						end end, {[], [], Remainder}, UnspentList);
 
 get_inputs(list,
 		   UnspentList,
@@ -487,60 +487,49 @@ get_inputs(list,
     %?debugFmt("U: ~p~n", [UnspentList]),
 	PColor = Payee#payee.color,
 	lists:foldl(fun(U, {UL, SL, Total}) ->
-				case U#utxop.color of
-					PColor ->
-					    %?debugFmt("COlor quant: ~p~n", [U#utxop.quantity]),
-						if Total =< Payee#payee.value ->
-								{UL, [U|SL], Total + U#utxop.quantity};
-				   			true ->
-				   				{[U|UL], SL, Total}
-							end;
-				    _ ->
-				    	{[U|UL], SL, Total}
-				end end, {[], [], Remainder}, UnspentList).
+						case lib_tx:get_attribute(color, U, ?Uncolored) of
+							PColor ->
+								%?debugFmt("COlor quant: ~p~n", [U#utxop.quantity]),
+								if Total =< Payee#payee.value ->
+										{UL, [U|SL], Total + lib_tx:get_attribute(quantity, U, 0)};
+									true ->
+										{[U|UL], SL, Total}
+									end;
+							_ ->
+								{[U|UL], SL, Total}
+					end end, {[], [], Remainder}, UnspentList).
 
 get_colored_unspents(dict, Color, Unspents) ->
 	dict:filter(fun(_K, V) ->
-					case V#utxop.color of
-						Color ->
-							true;
-						_ ->
-							false
-					end
+						case lib_tx:get_attribute(color, V, ?Uncolored) of
+							Color -> true;
+							_ -> false
+						end
 				end, Unspents).
 
 get_quantity_unspents(dict, Color, Unspents) ->
 	dict:fold(fun(_K, V, Acc) ->
-				case {V#utxop.color, Color} of
-					{Color, ?Uncolored} ->
-						Acc + V#utxop.value;
-					{Color, _} ->
-						Acc + V#utxop.quantity;
-					_ ->
-						Acc
+					  case {lib_tx:get_attribute(color, V, ?Uncolored), Color} of
+					  	  {Color, ?Uncolored} -> Acc + V#utxop.value;
+					{Color, _} -> Acc + lib_tx:get_attribute(quantity, V, 0);
+					_ -> Acc
 				end
 				end, 0, Unspents);
 
 get_quantity_unspents(map, Color, Unspents) ->
 	maps:fold(fun(_K, V, Acc) ->
-				case {V#utxop.color, Color} of
-					{Color, ?Uncolored} ->
-						Acc + V#utxop.value;
-					{Color, _} ->
-						Acc + V#utxop.quantity;
-					_ ->
-						Acc
+					  case {lib_tx:get_attribute(color, V, ?Uncolored), Color} of 
+					{Color, ?Uncolored} -> Acc + V#utxop.value;
+					{Color, _} -> Acc + lib_tx:get_attribute(quantity, V, 0); 
+					_ -> Acc
 				end
 				end, 0, Unspents);
 
 get_quantity_unspents(list, Color, Unspents) ->
 	lists:foldl(fun(V, Acc) ->
-				case {V#utxop.color, Color} of
-					{Color, ?Uncolored} ->
-						Acc + V#utxop.value;
-					{Color, _} ->
-						Acc + V#utxop.quantity;
-					_ ->
-						Acc
+						case {lib_tx:get_attribute(color, V, ?Uncolored), Color} of
+					{Color, ?Uncolored} -> Acc + V#utxop.value;
+					{Color, _} -> Acc + lib_tx:get_attribute(quantity, V, 0);
+					_ -> Acc
 				end
 				end, 0, Unspents).

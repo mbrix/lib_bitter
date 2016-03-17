@@ -64,7 +64,10 @@
 	     sigs/1,
 	     total/1,
 	     to_json/2,
-	     to_map/2]).
+	     to_map/2,
+	     get_attribute/3,
+	     set_attribute/3,
+	     del_attribute/2]).
 
 
 -include_lib("bitter.hrl").
@@ -119,11 +122,12 @@ sign_inputs(SigHashType, Inputs, Tx, KeypairDict, Proposals, Unspents) ->
 	lists:map(fun(I) ->
 		case dict:find({I#btxin.txhash, I#btxin.txindex}, Unspents) of
 		{ok, Unspent} ->
-			{InputType, Hash160} = unspent_type(Unspent),
 			case input_type(I) of
-				{unrecognized, _} ->
-					verify_input(InputType, SigHashType, Tx, Hash160, I, KeypairDict, Proposals, Unspent#utxop.script);
-				_ ->
+				{unrecognized, Hash160} ->
+					verify_input(unrecognized, SigHashType, Tx, Hash160, I, KeypairDict, Proposals, Unspent#utxop.script);
+                {InputType, Hash160} ->
+					sign_input(InputType, SigHashType, Tx, Hash160, I, KeypairDict, Proposals, Unspent#utxop.script);
+                {InputType, _SubType, Hash160} ->
 					sign_input(InputType, SigHashType, Tx, Hash160, I, KeypairDict, Proposals, Unspent#utxop.script)
 				end;
 			_ -> I
@@ -408,9 +412,7 @@ create_output(Type, ?Uncolored, ValueBits, PubkeyBin) ->
 	#btxout{value = ValueBits,
             script = Script,
             info = Info,
-            address = lib_address:script_to_address(Info, Script),
-            color = ?Uncolored,
-            quantity = 0};
+            address = lib_address:script_to_address(Info, Script)};
 create_output(Type, Color, ColorQuant, PubkeyBin) ->
 	Script = create_script(Type, PubkeyBin),
 	Info = lib_parse:parse_script(Script),
@@ -418,8 +420,7 @@ create_output(Type, Color, ColorQuant, PubkeyBin) ->
 		    script = Script,
             info = Info,
             address = lib_address:script_to_address(Info, Script),
-		    color = Color,
-		    quantity = ColorQuant}.
+            attributes = #{color => Color, quantity => ColorQuant}}.
 
 % Add unspents to a TX
 % Translated into Inputs
@@ -476,8 +477,7 @@ find_output(Tx, Output) ->
 
 serialize(Tx) when is_record(Tx, btx) -> bblock:serialize(Tx);
 
-serialize(Tx) when is_record(Tx, btxdef) ->
-	serialize_btxdef(Tx).
+serialize(Tx) when is_record(Tx, btxdef) -> serialize_btxdef(Tx).
 
 serialize_btxdef(Tx) ->
 	TransactionVersion    	=  Tx#btxdef.txversion,  
@@ -626,10 +626,47 @@ outputs_to_json(NetworkParams, Txoutputs) ->
                 {Vcounter+1, [#{value => lib_transact:satoshi_to_btc(E#btxout.value),
                                 vout => Vcounter,
                                 scriptPubKey => scriptpubkey_to_json(E#btxout.script),
-                                color => color_to_json(NetworkParams, E#btxout.color),
-                                quantity => E#btxout.quantity}|Outputs]}
+                                color => color_to_json(NetworkParams, get_attribute(color, E, ?Uncolored)),
+                                quantity => get_attribute(quantity, E, 0)}|Outputs]}
             end, {0, []}, Txoutputs),
     O.
+
+get_attribute(Attr, #boutput{}=B, Default) ->
+	case bblock:getattr(Attr, B) of
+		error -> Default;
+		{ok, Attribute} -> Attribute
+	end;
+
+get_attribute(Attr, #btxout{attributes = A}, Default) ->
+	case maps:find(Attr, A) of
+		error -> Default;
+		{ok, Attribute} -> Attribute
+	end;
+
+get_attribute(Attr, #utxop{attributes = A}, Default) ->
+	case maps:find(Attr, A) of
+		error -> Default;
+		{ok, Attribute} -> Attribute
+	end.
+
+set_attribute(Attr, Value, #boutput{}=B) -> {ok, Out} = bblock:setattr(Attr, Value, B),
+											Out;
+set_attribute(Attr, Value, #btx{}=B) -> {ok, Out} = bblock:setattr(Attr, Value, B),
+										Out;
+
+set_attribute(Attr, Value, #btxout{attributes = A}=Out) ->
+	Out#btxout{attributes = maps:put(Attr, Value, A)};
+
+set_attribute(Attr, Value, #utxop{attributes = A}=Unspent) ->
+	Unspent#utxop{attributes = maps:put(Attr, Value, A)}.
+
+del_attribute(Attr, #btxout{attributes = A}=Out) -> Out#btxout{attributes = maps:remove(Attr, A)};
+del_attribute(Attr, #btx{}=B) -> {ok, Out} = bblock:delattr(Attr, B),
+									 Out;
+del_attribute(Attr, #boutput{}=B) -> {ok, Out} = bblock:delattr(Attr, B),
+									 Out;
+del_attribute(Attr, #utxop{attributes = A}=Unspent) -> Unspent#utxop{attributes = maps:remove(Attr, A)}.
+
 
 scriptpubkey_to_json(Script) ->
     Hexbin = iolist_to_binary(hex:bin_to_hexstr(Script)),
