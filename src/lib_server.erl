@@ -34,7 +34,8 @@
 		 hibernation_on/2,
 		 hibernation_on/3,
 		 hibernate/2,
-		 hibernate/3]).
+		 hibernate/3,
+		 hibernate/4]).
 
 -define(GCTHRESH, 500).
 
@@ -42,10 +43,15 @@ hibernation_on(S) -> hibernation_on(S, ?GCTHRESH).
 hibernation_on(S, Fun) when is_function(Fun) -> hibernation_on(S, Fun, ?GCTHRESH);
 hibernation_on(S, Threshold) -> S#{gcthresh => Threshold, processed => 1}.
 
-hibernation_on(S, Fun, Threshold) -> S#{gcthresh => Threshold, processed => 1, hibernate_fun => Fun}.
+hibernation_on(S, Fun, Threshold) when is_function(Fun) -> S#{gcthresh => Threshold, processed => 1, hibernate_fun => Fun};
 
+hibernation_on(S, GCThreshold, SizeThreshold) ->
+    S#{gcthresh => GCThreshold, sizethresh => SizeThreshold, processedbytes => 0}.
+
+
+%% Hibernate by gcthresh
 hibernate(reply, Response, #{gcthresh := GCThresh, processed := P} = S) when P > 0 ->
-	hibernate(reply, Response, P rem GCThresh, S);
+	do_hibernate(reply, Response, P rem GCThresh, S);
 hibernate(reply, Response, #{processed := P} = S) -> {reply, Response, S#{processed => P+1}};
 
 hibernate(noreply, 0, S) -> 
@@ -53,10 +59,17 @@ hibernate(noreply, 0, S) ->
 	{noreply, S#{processed => 1}, hibernate};
 hibernate(noreply, _, #{processed := P} = S) -> {noreply, S#{processed => P+1}}.
 
-hibernate(reply, Response, 0, S) ->
+
+hibernate(reply, Response, #{sizethresh := SThresh, processedbytes := PB}=S, Size) when PB+Size > SThresh ->
+    do_hibernate(reply, Response, 0, S);
+
+hibernate(reply, Response, #{processedbytes := PB}=S, Size) ->
+    {reply, Response, S#{processedbytes => PB + Size}}.
+
+do_hibernate(reply, Response, 0, S) ->
 	hibernate_fun(S),
-	{reply, Response, S#{processed => 1}, hibernate};
-hibernate(reply, Response, _, #{processed := P} = S) -> {reply, Response, S#{processed => P+1}}.
+	{reply, Response, S#{processed => 1, processedbytes => 0}, hibernate};
+do_hibernate(reply, Response, _, #{processed := P} = S) -> {reply, Response, S#{processed => P+1}}.
 
 hibernate(noreply, #{gcthresh := GCThresh, processed := P} = S) when P > 0 ->
 	hibernate(noreply, P rem GCThresh, S);
