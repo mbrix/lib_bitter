@@ -519,11 +519,9 @@ serialize_outputs(Outputs) when is_list(Outputs) ->
 serialize_outputs(O) ->
 	Value = O#btxout.value,
 	Script = O#btxout.script,
-    ScriptLength = size(Script),
-    BitLength = ScriptLength*8,
 	[<<Value:64/little>>,
-	int_to_varint(ScriptLength),
-	<<Script:BitLength/bitstring>>].
+	int_to_varint(size(Script)),
+	<<Script/binary>>].
 
 
 %% varint

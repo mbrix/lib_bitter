@@ -45,7 +45,7 @@ native() ->
 counts() ->
 	{ok, B} = bblock:native(btr_net_params:params(), rawblock()),
 	?assertEqual(1, bblock:tx_count(B)),
-	Tx = bblock:tx(B, 1),
+	Tx = bblock:tx(B, 0),
 	?assertEqual(1, bblock:input_count(Tx)),
 	?assertEqual(1, bblock:output_count(Tx)).
 
@@ -54,7 +54,7 @@ hash() ->
 	CorrectBlockHash = lib_block:from_string("00000000e218d46cb2ebea79906e0052ae1c5bb6b224b0da3bcee63ea53e33d0"),
 	CorrectTxHash = lib_block:from_string("aa653511d368baae692060b2554ddbfbf1efbd49167cb25c8213f327d4362d4e"),
 	?assertEqual(CorrectBlockHash, bblock:hash(B)),
-	Tx = bblock:tx(B, 1),
+	Tx = bblock:tx(B, 0),
 	?assertEqual(CorrectTxHash, bblock:hash(Tx)).
 
 
@@ -287,6 +287,18 @@ inputs_and_outputs() ->
                  end, ok, BlockRecord).
 
 
+compare_tx() ->
+    HexBlock = erlang:binary_to_list(lib_test:data("rawblock2.hex")),
+    RawBlock = hex:hexstr_to_bin(HexBlock),
+    {ok, BlockRecord, _, _} = bblock:parse(btr_net_params:params(), RawBlock),
+    Txs = bblock:txs(BlockRecord),
+    lists:foldl(fun(Index, TxList) ->
+                          [NextTx|T] = TxList,
+                          Tx = bblock:tx(BlockRecord, Index),
+                          ?assertEqual(NextTx, Tx),
+                          T
+                end, Txs, lists:seq(0, length(Txs)-1)).
+
 
 %% Long running test to verify compatibility
 %% between bbdef and bblock types.
@@ -348,7 +360,8 @@ bblock_test_() ->
         {"Slim block", fun slim_btx/0},
         {"strip btx", fun strip_btx/0},
         {"single_outputs", fun single_outputs/0},
-        {"Inputs and outputs", fun inputs_and_outputs/0}
+        {"Inputs and outputs", fun inputs_and_outputs/0},
+        {"Compare tx methods", fun compare_tx/0}
 
    ]
   }.

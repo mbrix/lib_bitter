@@ -89,6 +89,7 @@
 		 address/1,
 		 output_set/1,
 		 strip_output/2,
+		 strip_meta/1,
 		 find_opreturn/1,
 		 compress_output/1
 		]).
@@ -474,9 +475,10 @@ address(#btxout{address = A}) -> A.
 
 tx(#bblock{data = <<_:88/binary, D/binary>>=B, meta = M}, Index) ->
 	[_TXCount, Tbin] = read_tx_count(D),
-	Rest = getTransactions(Index-1, Tbin),
+	Rest = getTransactions(Index, Tbin),
 	Offset = byte_size(B) - byte_size(Rest),
-	#btx{data = Rest,
+	EndTx = getTransactions(1, Rest),
+	#btx{data = binary:part(Rest, {0, size(Rest) - size(EndTx)}),
          offset = Offset,
 		 meta = get_meta(Offset, M)}.
 
@@ -534,6 +536,10 @@ strip_output(#btx{data = <<F:4/binary, D/binary>>}=B, Index) ->
 	[_, Outputbin] = read_output_count(Next),
 	strip_next_output(B, F, D, Index, Outputbin, byte_size(D) - byte_size(Outputbin)).
 
+strip_meta(#bblock{}=B) -> B#bblock{meta = #{}};
+strip_meta(#btx{}=B) -> B#btx{meta = #{}};
+strip_meta(#boutput{}=B) -> B#boutput{meta = #{}}.
+
 strip_next_output(B, F, D, 0, Rest, PreSize) -> 
         Next = getTxOutputs(1, Rest),
         TxSize = byte_size(Rest) - byte_size(Next),
@@ -572,7 +578,7 @@ extract(_MagicByte, _Data) ->  error.
 
 read_tx_count(Tbin) -> lib_parse:getVarInt(Tbin).
 
-getTransactions(X, Tbin) when X < 1 -> Tbin;
+getTransactions(0, Tbin) -> Tbin;
 getTransactions(TXCount, Tbin) ->
 	Next = getTransaction(Tbin),
 	getTransactions(TXCount-1, Next).
