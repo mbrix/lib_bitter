@@ -300,6 +300,19 @@ compare_tx() ->
                           T
                 end, Txs, lists:seq(0, length(Txs)-1)).
 
+output_compression() ->
+    HexBlock = erlang:binary_to_list(lib_test:data("rawblock2.hex")),
+    RawBlock = hex:hexstr_to_bin(HexBlock),
+    {ok, BlockRecord, _, _} = bblock:parse(btr_net_params:params(), RawBlock),
+    bblock:foldl(fun(Btx, _) ->
+                         bblock:foldl_outputs(fun(Output, _) ->
+                                                      % Compress the output
+                                                      Compressed = bblock:compress_output(Output),
+                                                      Decompressed = bblock:decompress_output(Compressed),
+                                                      ?assertEqual(Output#boutput.meta, Decompressed#boutput.meta),
+                                                      ?assertEqual(Output#boutput.data, Decompressed#boutput.data)
+                                              end, ok, Btx)
+                 end, ok, BlockRecord).
 
 %% Long running test to verify compatibility
 %% between bbdef and bblock types.
@@ -362,7 +375,8 @@ bblock_test_() ->
         {"strip btx", fun strip_btx/0},
         {"single_outputs", fun single_outputs/0},
         {"Inputs and outputs", fun inputs_and_outputs/0},
-        {"Compare tx methods", fun compare_tx/0}
+        {"Compare tx methods", fun compare_tx/0},
+        {"Output compression", fun output_compression/0}
 
    ]
   }.

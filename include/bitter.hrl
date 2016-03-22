@@ -54,7 +54,7 @@
 
 % Unspent sets indexed by TX Hash
 
--record(unspentset, {mapping}).
+-record(unspentset, {type, mapping}).
 -record(us, {hash_index, status, height_coinbase_output}).
 
 

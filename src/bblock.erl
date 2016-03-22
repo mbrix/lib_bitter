@@ -91,7 +91,8 @@
 		 strip_output/2,
 		 strip_meta/1,
 		 find_opreturn/1,
-		 compress_output/1
+		 compress_output/1,
+		 decompress_output/1
 		]).
 
 %% Transaction Inputs
@@ -470,7 +471,7 @@ value(#boutput{data = <<V:64/little, _/binary>>}) -> V.
 info(#btxout{}=Out) -> Out#btxout.info;
 info(#boutput{}=Out) -> lib_parse:parse_script(script(Out)).
 
-address(#boutput{}=Out) -> lib_address:script_to_adddress(info(Out), script(Out));
+address(#boutput{}=Out) -> lib_address:script_to_address(info(Out), script(Out));
 address(#btxout{address = A}) -> A.
 
 tx(#bblock{data = <<_:88/binary, D/binary>>=B, meta = M}, Index) ->
@@ -664,18 +665,18 @@ inputs_outputs(#btx{data = <<_:32, D/binary>> = T, meta = M}) ->
 	Outputs= next_output(OutputCount, OutputCount, D, Outputbin, OutputStartOffset, M, FoldFun, []),
     {lists:reverse(Inputs), lists:reverse(Outputs)}.
 
-
-match_outputs(Btx, MatchFun) ->
-    try
-        foldl_outputs(fun(Output, _) ->
-                              case MatchFun(Output) of
-                                  false -> false;
-                                  true -> throw(matched)
-                              end
-                      end, ok, Btx)
-    catch
-        throw:_ -> true
-    end.
+match_outputs(L, MatchFun) ->
+    lists:foldl(fun(#boutput{}=Out, {Matched, MatchedList}) ->
+                        case MatchFun(Out) of
+                            false -> {Matched, MatchedList};
+                            true  -> {true, [Out|MatchedList]}
+                        end;
+                   (#us{}=U, {Matched, MatchedList}) ->
+                        case MatchFun(unspentset:output(U)) of
+                            false -> {Matched, MatchedList};
+                            true -> {true, [U|MatchedList]}
+                        end
+                end, [], L).
 
 foreach(EachFun, #bblock{}=B) -> foldl(fun(Btx, _) -> EachFun(Btx), ok end, ok, B).
 
@@ -741,10 +742,49 @@ foldr_outputs(FoldFun, StartAcc, #btx{}=Tx) ->
 
 
 %% Output compression for most common types
-compress_output(O) -> do_compress_output(O, leb128:encode(value(O), unsigned), info(O)).
+compress_output(O) -> <<(do_compress_output(O, leb128:encode(value(O), unsigned), info(O)))/binary,
+                              (serialize_meta(O))/binary>>.
 
-do_compress_output(_O, V, {p2pkh, Pubkey}) -> <<V/binary, Pubkey/binary>>;
-do_compress_output(_, V, {p2pkh2, Pubkey}) -> <<1:8, V/binary, Pubkey/binary>>;
-do_compress_output(_, V, {p2sh, 1, Hash}) -> <<2:8, V/binary, Hash/binary>>;
-do_compress_output(_, V, {p2sh, 2, Hash}) -> <<3:8, V/binary, Hash/binary>>;
-do_compress_output(O, _, _) -> <<2:8, (serialize(O))/binary>>.
+do_compress_output(_O, V, {p2pkh, Pubkey}) -> <<1:8, Pubkey/binary, V/binary>>;
+do_compress_output(_, V, {p2pkh2, Pubkey}) -> <<2:8, Pubkey/binary, V/binary>>;
+do_compress_output(_, V, {p2sh, 1, Hash}) -> <<3:8,  Hash/binary, V/binary>>;
+do_compress_output(_, V, {p2sh, 2, Hash}) -> <<4:8,  Hash/binary, V/binary>>;
+do_compress_output(O, _, _) -> <<5:8, (serialize(O))/binary>>.
+
+%% This is a normal output
+decompress_output(<<5:8, Rest/binary>>) ->
+    Next = getTxOutputs(1, Rest),
+    #boutput{data =  binary:part(Rest, {0, byte_size(Rest) - byte_size(Next)}),
+             meta = deserialize_meta(Next)};
+
+decompress_output(<<2:8, Key:33/binary, V/binary>>) ->
+    {Value, Rest2} = leb128:decode(V, unsigned),
+    reconstruct_output(2, Key, Value, Rest2);
+decompress_output(<<Type:8, Key:20/binary, V/binary>>) ->
+    {Value, Rest2} = leb128:decode(V, unsigned),
+    reconstruct_output(Type, Key, Value, Rest2).
+
+
+reconstruct_output(1, Key, Value, Rest) ->
+    Script = <<?OP_DUP:8, ?OP_HASH160:8, 16#14:8, Key:20/binary, ?OP_EQUALVERIFY:8, ?OP_CHECKSIG:8>>,
+    #boutput{data = <<Value:64/little, (lib_tx:int_to_varint(size(Script)))/binary, Script/binary>>,
+             meta = deserialize_meta(Rest)};
+
+reconstruct_output(2, Key, Value, Rest) ->
+    Script = <<?OP_SHA256:8, Key:33/binary, ?OP_EQUAL:8>>,
+    #boutput{data = <<Value:64/little, (lib_tx:int_to_varint(size(Script)))/binary, Script/binary>>,
+             meta = deserialize_meta(Rest)};
+
+reconstruct_output(3, Key, Value, Rest) ->
+    Script = <<?OP_HASH160:8, 16#14:8, Key:20/binary, ?OP_EQUAL:8>>,
+    #boutput{data = <<Value:64/little, (lib_tx:int_to_varint(size(Script)))/binary, Script/binary>>,
+             meta = deserialize_meta(Rest)};
+
+reconstruct_output(4, Key, Value, Rest) ->
+    Script = <<?OP_HASH160:8, Key:20/binary, ?OP_EQUAL:8>>,
+    #boutput{data = <<Value:64/little, (lib_tx:int_to_varint(size(Script)))/binary, Script/binary>>,
+             meta = deserialize_meta(Rest)}.
+
+
+
+

@@ -63,9 +63,39 @@ store() ->
     US4 = bblock:foldl(fun(Btx, US2) ->
                          Hash = bblock:hash(Btx),
                          bblock:foldl_outputs(fun(Output, US3) ->
-                                                      ?assertMatch({ok, _},
-                                                                   unspentset:remove(Hash, bblock:index(Output), US3)),
-                                                      US3
+                                                      {ok, US5} = unspentset:remove(Hash, bblock:index(Output), US3),
+                                                      US5
+                                              end, US2, Btx)
+                 end, US, Block),
+    ?assertEqual(0, unspentset:count(US4)).
+
+store_dict() ->
+    HexBlock = erlang:binary_to_list(lib_test:data("rawblock2.hex")),
+    RawBlock = hex:hexstr_to_bin(HexBlock),
+    {continue, Block, _BlockOffset, _Offsets, _} = lib_parse:parse_raw_block(bblock, btr_net_params:params(), RawBlock),
+
+    %% Let's build an unspent set that has everything in it
+
+	US = bblock:foldl(fun(Btx, UnspentSet) ->
+	                          unspentset:add(bblock:hash(Btx), bblock:outputs(Btx), 1, false, UnspentSet)
+                      end, unspentset:new(dict), Block),
+
+    %% Now lookup every output and compare check_spent
+
+    bblock:foldl(fun(Btx, _) ->
+                         Hash = bblock:hash(Btx),
+                         bblock:foldl_outputs(fun(Output, _) ->
+                                                      ?assertMatch({ok, _}, unspentset:lookup(Hash, bblock:index(Output), US))
+                                              end, ok, Btx)
+                 end, ok, Block),
+
+    %% Now spend everything in the output set
+
+    US4 = bblock:foldl(fun(Btx, US2) ->
+                         Hash = bblock:hash(Btx),
+                         bblock:foldl_outputs(fun(Output, US3) ->
+                                                      {ok, US5} = unspentset:remove(Hash, bblock:index(Output), US3),
+                                                      US5
                                               end, US2, Btx)
                  end, US, Block),
     ?assertEqual(0, unspentset:count(US4)).
@@ -76,7 +106,8 @@ unspentset_test_() ->
   fun start/0,
   fun stop/1,
    [
-    {"store", fun store/0}
+    {"store", fun store/0},
+    {"store with dictionary backend", fun store_dict/0}
    ]
   }.
 
