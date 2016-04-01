@@ -283,7 +283,11 @@ inputs_and_outputs() ->
                          %[O2|_] = bblock:outputs(Btx),
                          %?debugFmt("~p ~n ~p ~n", [O, O2]),
                          ?assertEqual(Inputs, bblock:inputs(Btx)),
-                         ?assertEqual(Outputs, bblock:outputs(Btx))
+                         ?assertEqual(Outputs, bblock:outputs(Btx)),
+                         Inputs2 = bblock:foldl_inputs(fun(I, Acc) -> [I|Acc] end, [], Btx),
+                         Outputs2 = bblock:foldl_outputs(fun(O, Acc) -> [O|Acc] end, [], Btx),
+                         ?assertEqual(lists:reverse(Inputs2), bblock:inputs(Btx)),
+                         ?assertEqual(lists:reverse(Outputs2), bblock:outputs(Btx))
                  end, ok, BlockRecord).
 
 
