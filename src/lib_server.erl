@@ -45,8 +45,13 @@ hibernation_on(S, Threshold) -> S#{gcthresh => Threshold, processed => 1}.
 
 hibernation_on(S, Fun, Threshold) when is_function(Fun) -> S#{gcthresh => Threshold, processed => 1, hibernate_fun => Fun};
 
+%% Track processed elements
+%% and total binary usage
 hibernation_on(S, GCThreshold, SizeThreshold) ->
-    S#{gcthresh => GCThreshold, sizethresh => SizeThreshold, processedbytes => 0}.
+    S#{gcthresh => GCThreshold,
+       processed => 1,
+       sizethresh => SizeThreshold,
+       processedbytes => 0}.
 
 
 %% Hibernate by gcthresh
