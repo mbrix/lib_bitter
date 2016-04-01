@@ -34,7 +34,7 @@
          is_empty/1,
          add/2,
          add/5,
-         remove/3,
+         remove/4,
          fold/3,
          lookup/3,
          count/1,
@@ -94,7 +94,13 @@ create_unspent(Output, Hash, Index, Height, Coinbase) ->
 
 tohash(Hash, Index) -> <<Hash/binary, Index:32>>.
 
-remove(Hash, Index, #unspentset{type = ets, mapping=M}=U) ->
+remove(Hash, Index, U, Output) when is_record(Output, boutput) ->
+    remove(Hash, Index, U, create_unspent(Output, Hash, Index, 0, false));
+
+remove(Hash, Index, U, <<>>) -> remove(Hash, Index, U, #us{hash_index = tohash(Hash, Index),
+                                                           height_coinbase_output = <<>>});
+
+remove(Hash, Index, #unspentset{type = ets, mapping=M}=U, UnspentOutput) ->
     HI = tohash(Hash, Index),
     case ets:lookup(M, HI) of
         [_] -> true = ets:delete(M, HI),
@@ -102,16 +108,16 @@ remove(Hash, Index, #unspentset{type = ets, mapping=M}=U) ->
         [] ->
             %% Insert a proxy unspent that we can
             %% later cull from underlying storage
-            true = ets:insert(M, #us{hash_index = HI, status = ?SPENT_STATE, height_coinbase_output = <<>>}),
-            {missing, U}
+            true = ets:insert(M, UnspentOutput#us{status = ?SPENT_STATE}),
+            {ok, U}
     end;
 
-remove(Hash, Index, #unspentset{type = dict, mapping=M}=U) ->
+remove(Hash, Index, #unspentset{type = dict, mapping=M}=U, UnspentOutput) ->
     HI = tohash(Hash, Index),
     case dict:find(HI, M) of
         {ok, _Unspent} -> {ok, U#unspentset{mapping = dict:erase(HI, M)}};
         error -> 
-            {missing, U#unspentset{mapping = dict:store(HI, #us{hash_index = HI, status = ?SPENT_STATE, height_coinbase_output = <<>>})}}
+            {ok, U#unspentset{mapping = dict:store(HI, UnspentOutput#us{status = ?SPENT_STATE})}}
     end.
 
 
@@ -143,8 +149,6 @@ is_empty(#unspentset{type = ets, mapping=M}) ->
 is_empty(#unspentset{type = dict, mapping=M}) -> dict:is_empty(M).
 
 lookup(Hash, Index, #unspentset{type = ets, mapping=M}) ->
-    %?debugFmt("YYY: ~p~n", [ets:tab2list(M)]),
-    %?debugFmt("XXX: ~p ~p~n", [Hash, Index]),
     case ets:lookup(M, tohash(Hash, Index)) of
         [#us{status = ?SPENT_STATE}] -> spent;
         [UnspentOutput] -> {ok, UnspentOutput};
@@ -162,6 +166,7 @@ serialize(#us{height_coinbase_output = O}) -> O.
 
 deserialize(HashIndex, Bin) ->
     #us{hash_index = HashIndex,
+        status = ?NEW_STATE,
         height_coinbase_output = Bin}.
 
 

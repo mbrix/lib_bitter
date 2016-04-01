@@ -63,7 +63,7 @@ store() ->
     US4 = bblock:foldl(fun(Btx, US2) ->
                          Hash = bblock:hash(Btx),
                          bblock:foldl_outputs(fun(Output, US3) ->
-                                                      {ok, US5} = unspentset:remove(Hash, bblock:index(Output), US3),
+                                                      {ok, US5} = unspentset:remove(Hash, bblock:index(Output), US3, Output),
                                                       US5
                                               end, US2, Btx)
                  end, US, Block),
@@ -94,7 +94,7 @@ store_dict() ->
     US4 = bblock:foldl(fun(Btx, US2) ->
                          Hash = bblock:hash(Btx),
                          bblock:foldl_outputs(fun(Output, US3) ->
-                                                      {ok, US5} = unspentset:remove(Hash, bblock:index(Output), US3),
+                                                      {ok, US5} = unspentset:remove(Hash, bblock:index(Output), US3, Output),
                                                       US5
                                               end, US2, Btx)
                  end, US, Block),
