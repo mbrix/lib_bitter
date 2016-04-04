@@ -31,6 +31,7 @@
          new/1,
          destroy/1,
          status/1,
+         status/2,
          is_empty/1,
          add/2,
          add/5,
@@ -39,9 +40,12 @@
          lookup/3,
          count/1,
          serialize/1,
+         serialize2/1,
          address/1,
          create_unspent/5,
+         keys/1,
          deserialize/2,
+         deserialize2/2,
          output/1]).
 
 -include_lib("bitter.hrl").
@@ -81,9 +85,9 @@ store_dict([], Dict) -> Dict;
 store_dict([H|T], Dict) -> store_dict(T, dict:store(H#us.hash_index, H, Dict)).
 
 generate_insert(_Hash, _Index, [], _Height, _Coinbase, Acc) -> Acc;
-generate_insert(Hash, Index, [H|T], Height, Coinbase, Acc) ->
+generate_insert(Hash, Index, [Output|T], Height, Coinbase, Acc) ->
     generate_insert(Hash, Index+1, T, Height, Coinbase,
-                    [create_unspent(H, Hash, Index, Height, Coinbase)|Acc]).
+                    [create_unspent(Output, Hash, bblock:index(Output), Height, Coinbase)|Acc]).
 
 create_unspent(Output, Hash, Index, Height, Coinbase) ->
     #us{hash_index  = tohash(Hash, Index), 
@@ -91,6 +95,8 @@ create_unspent(Output, Hash, Index, Height, Coinbase) ->
                          height_coinbase_output =  <<Height:32,
                                                    (coinbase_serialize(Coinbase)):8,
                                                    (bblock:compress_output(Output))/binary>>}.
+
+keys(#unspentset{type = dict, mapping = M}) -> dict:fetch_keys(M).
 
 tohash(Hash, Index) -> <<Hash/binary, Index:32>>.
 
@@ -140,6 +146,9 @@ fold(Fun, AccStart, #unspentset{type = dict, mapping=M}) -> dict:fold(Fun, AccSt
 status(#us{status = ?NEW_STATE}) -> new;
 status(#us{status = ?SPENT_STATE}) -> spent.
 
+status(spent, U) -> U#us{status = ?SPENT_STATE};
+status(new, U) -> U#us{status = ?NEW_STATE}.
+
 is_empty(#unspentset{type = ets, mapping=M}) -> 
     case ets:first(M) of
         '$end_of_table' -> true;
@@ -150,14 +159,14 @@ is_empty(#unspentset{type = dict, mapping=M}) -> dict:is_empty(M).
 
 lookup(Hash, Index, #unspentset{type = ets, mapping=M}) ->
     case ets:lookup(M, tohash(Hash, Index)) of
-        [#us{status = ?SPENT_STATE}] -> spent;
+        [#us{status = ?SPENT_STATE}=U] -> {spent, U};
         [UnspentOutput] -> {ok, UnspentOutput};
         [] -> not_found
     end;
 
 lookup(Hash, Index, #unspentset{type = dict, mapping = M}) ->
     case dict:find(tohash(Hash, Index), M) of
-        {ok, #us{status = ?SPENT_STATE}} -> spent;
+        {ok, #us{status = ?SPENT_STATE}=U} -> {spent, U};
         {ok, UnspentOutput} -> {ok, UnspentOutput};
         error -> not_found
     end.
@@ -168,6 +177,14 @@ deserialize(HashIndex, Bin) ->
     #us{hash_index = HashIndex,
         status = ?NEW_STATE,
         height_coinbase_output = Bin}.
+
+serialize2(#us{status = Status, height_coinbase_output = O}) -> <<Status:8, O/binary>>.
+
+deserialize2(HashIndex, Bin) ->
+    <<Status:8, Output/binary>> = Bin,
+    #us{hash_index = HashIndex,
+        status = Status,
+        height_coinbase_output = Output}.
 
 
 output(#us{height_coinbase_output = Bin}) ->
