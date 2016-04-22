@@ -159,7 +159,7 @@ metaurl(P, Url) when is_record(P, payment) ->
 % Uncolored unspent
 
 check_for_colored(U) ->
-	case lib_tx:get_attribute(color, U, ?Uncolored) of
+	case lib_unspent:get_attribute(color, U, ?Uncolored) of
 		?Uncolored -> true;
 		_ -> throw(issue_error)
 	end.
@@ -175,7 +175,7 @@ issue(Payment, Unspent, Payee) ->
 	   		                issuances=1,
 	   		                outputs = Payment#payment.outputs ++
 	   		    			[O],
-	   		    	        r_value = Unspent#utxop.value - O#btxout.value,
+	   		    	        r_value = get_value(Unspent) - get_value(O),
 	   		    	        r_color = ?Uncolored}
 	end.
 
@@ -188,7 +188,7 @@ issue(Payment, Payee) ->
 							color=lib_color:get_issue_color_unspents(Payment#payment.selected)}),
 		Payment#payment{issuances = Payment#payment.issuances + 1,
 			outputs = Payment#payment.outputs ++ [O],
-			r_value = Payment#payment.r_value - O#btxout.value}
+			r_value = Payment#payment.r_value - bblock:value(O)}
 	end.			
 
 pay(Payment, Unspents, []) ->
@@ -280,8 +280,8 @@ final_check(P) ->
 
 check_dust_verify(P) ->
 	lists:map(fun(O) ->
-		if O#btxout.value < ?DUSTLIMIT ->
-				throw(insufficient_funds);
+	                  Value = bblock:value(O),
+		if Value < ?DUSTLIMIT -> throw(insufficient_funds);
 			true -> true
 	end end, P#payment.outputs).
 
@@ -354,7 +354,7 @@ finish_color(P, Unspents) when is_record(P, payment) ->
 	P#payment{outputs=create_change_output(P, P#payment.outputs),
 		      change=undefined,
 			  r_color=?Uncolored,
-			  r_value=LastOutput#utxop.value}.
+			  r_value=lib_unspent:value(LastOutput)}.
 
 add_change(P, Unspents, Change) when is_record(P, payment),
 		is_record(Change, addr) ->
@@ -407,8 +407,8 @@ create_output(P) when is_record(P, payee) ->
 			P#payee.address#addr.bin).
 
 
-get_value(O) when is_record(O, utxop) -> O#utxop.value;
-get_value(O) when is_record(O, btxout) -> O#btxout.value.
+get_value(O) when is_record(O, utxop) or is_record(O, us) -> lib_unspent:value(O);
+get_value(O) when is_record(O, btxout) -> bblock:value(O).
 
 %get_quant(O) when is_record(O, utxop) -> O#utxop.quantity;
 %get_quant(O) when is_record(O, btxout) -> O#btxout.quantity.
@@ -418,10 +418,9 @@ value(?Uncolored, Outputs) when is_list(Outputs) ->
 		get_value(O) + Sum
 	end, 0, Outputs).
 
-get_available_value(V) -> get_available_value(lib_tx:get_attribute(color, V, ?Uncolored), V).
+get_available_value(V) -> get_available_value(lib_unspent:get_attribute(color, V, ?Uncolored), V).
 
-get_available_value(?Uncolored, #utxop{value = V}) -> V;
-get_available_value(?Uncolored, #btxout{value = V}) -> V;
+get_available_value(?Uncolored, U) -> get_value(U);
 get_available_value(_, _) -> 0.
 
 available(?Uncolored, Outputs) when is_list(Outputs) ->
@@ -441,10 +440,9 @@ available(?Uncolored, Outputs) when is_list(Outputs) ->
 %
 check_dust(Outputs) ->
 	lists:map(fun(O) ->
-		if O#btxout.value =< ?DUSTLIMIT ->
-				O#btxout{value = ?DUSTLIMIT};
-			true ->
-				O
+	                  Value = bblock:value(O),
+	                  if Value =< ?DUSTLIMIT -> bblock:set_value(O, ?DUSTLIMIT);
+	                     true -> O
 	end end, Outputs).
 
 
@@ -469,10 +467,10 @@ get_inputs(list,
     %?debugFmt("Pcolor: ~p ~n", [?Uncolored]),
     %?debugFmt("U: ~p~n", [UnspentList]),
 	lists:foldl(fun(U, {UL, SL, Total}) ->
-						case lib_tx:get_attribute(color, U, ?Uncolored) of
+						case lib_unspent:get_attribute(color, U, ?Uncolored) of
 							?Uncolored ->
 								if Total =< Payee#payee.value ->
-									   {UL, [U|SL], Total + U#utxop.value};
+									   {UL, [U|SL], Total + lib_unspent:value(U)};
 								   true -> {[U|UL], SL, Total}
 								end;
 							_ -> {[U|UL], SL, Total}
@@ -487,11 +485,11 @@ get_inputs(list,
     %?debugFmt("U: ~p~n", [UnspentList]),
 	PColor = Payee#payee.color,
 	lists:foldl(fun(U, {UL, SL, Total}) ->
-						case lib_tx:get_attribute(color, U, ?Uncolored) of
+						case lib_unspent:get_attribute(color, U, ?Uncolored) of
 							PColor ->
 								%?debugFmt("COlor quant: ~p~n", [U#utxop.quantity]),
 								if Total =< Payee#payee.value ->
-										{UL, [U|SL], Total + lib_tx:get_attribute(quantity, U, 0)};
+										{UL, [U|SL], Total + lib_unspent:get_attribute(quantity, U, 0)};
 									true ->
 										{[U|UL], SL, Total}
 									end;
@@ -501,7 +499,7 @@ get_inputs(list,
 
 get_colored_unspents(dict, Color, Unspents) ->
 	dict:filter(fun(_K, V) ->
-						case lib_tx:get_attribute(color, V, ?Uncolored) of
+						case lib_unspent:get_attribute(color, V, ?Uncolored) of
 							Color -> true;
 							_ -> false
 						end
@@ -509,27 +507,27 @@ get_colored_unspents(dict, Color, Unspents) ->
 
 get_quantity_unspents(dict, Color, Unspents) ->
 	dict:fold(fun(_K, V, Acc) ->
-					  case {lib_tx:get_attribute(color, V, ?Uncolored), Color} of
-					  	  {Color, ?Uncolored} -> Acc + V#utxop.value;
-					{Color, _} -> Acc + lib_tx:get_attribute(quantity, V, 0);
+					  case {lib_unspent:get_attribute(color, V, ?Uncolored), Color} of
+					  	  {Color, ?Uncolored} -> Acc + lib_unspent:value(V);
+					{Color, _} -> Acc + lib_unspent:get_attribute(quantity, V, 0);
 					_ -> Acc
 				end
 				end, 0, Unspents);
 
 get_quantity_unspents(map, Color, Unspents) ->
 	maps:fold(fun(_K, V, Acc) ->
-					  case {lib_tx:get_attribute(color, V, ?Uncolored), Color} of 
-					{Color, ?Uncolored} -> Acc + V#utxop.value;
-					{Color, _} -> Acc + lib_tx:get_attribute(quantity, V, 0); 
+					  case {lib_unspent:get_attribute(color, V, ?Uncolored), Color} of 
+					{Color, ?Uncolored} -> Acc + lib_unspent:value(V);
+					{Color, _} -> Acc + lib_unspent:get_attribute(quantity, V, 0); 
 					_ -> Acc
 				end
 				end, 0, Unspents);
 
 get_quantity_unspents(list, Color, Unspents) ->
 	lists:foldl(fun(V, Acc) ->
-						case {lib_tx:get_attribute(color, V, ?Uncolored), Color} of
-					{Color, ?Uncolored} -> Acc + V#utxop.value;
-					{Color, _} -> Acc + lib_tx:get_attribute(quantity, V, 0);
+						case {lib_unspent:get_attribute(color, V, ?Uncolored), Color} of
+					{Color, ?Uncolored} -> Acc + lib_unspent:value(V);
+					{Color, _} -> Acc + lib_unspent:get_attribute(quantity, V, 0);
 					_ -> Acc
 				end
 				end, 0, Unspents).

@@ -74,7 +74,7 @@ colors(tx, [Tx|T], Colors) ->
 	colors(tx, T, colors(outputs, Tx#btxdef.txoutputs, Colors));
 colors(outputs, [], Colors) -> Colors;
 colors(outputs, [O|T], Colors) ->
-	colors(outputs, T, maps:put(lib_color:readable(lib_tx:get_attribute(color, O, ?Uncolored)), 0, Colors)).
+	colors(outputs, T, maps:put(lib_color:readable(lib_unspent:get_attribute(color, O, ?Uncolored)), 0, Colors)).
 
 readable_hash(binary, Hash) ->
 	iolist_to_binary(readable_hash(Hash)).
@@ -156,7 +156,7 @@ print(B) when is_record(B, bbdef) ->
 
 
 serialize(B) when is_record(B, bbdef) ->
-    Network= B#bbdef.network,
+    Network = B#bbdef.network,
     HeaderLength = B#bbdef.headerlength,
     VersionNumber = B#bbdef.version,
     PreviousHash = B#bbdef.previoushash,
@@ -168,18 +168,17 @@ serialize(B) when is_record(B, bbdef) ->
     [<<Network:32/little, 
     HeaderLength:32/little,
     VersionNumber:32/little, 
-    PreviousHash:256/bitstring, 
-    MerkleRoot:256/bitstring, 
+    PreviousHash:32/binary, 
+    MerkleRoot:32/binary, 
     TimeStamp:32/little, 
     TargetDifficulty:32/little, 
     Nonce:32/little>>,
-     lib_tx:int_to_varint(length(B#bbdef.txdata)),
+     lib_parse:int_to_varint(length(B#bbdef.txdata)),
      encode_txdata(B#bbdef.txdata)]).
 
 encode_txdata(TxList) -> encode_txdata(TxList, []).
 encode_txdata([], Acc) -> lists:reverse(Acc);
-encode_txdata(TxList, Acc) ->
-    [H|T] = TxList,
+encode_txdata([H|T], Acc) ->
     encode_txdata(T, [lib_tx:serialize_btxdef(H)|Acc]).
 
 
@@ -204,8 +203,8 @@ color_serialize_outputs(Outputs, BinAcc) ->
     color_serialize_outputs(T, [[OutputColor, Quant]|BinAcc]).
 
 color_output(O) ->
-    [get_output_color(lib_tx:get_attribute(color, O, ?Uncolored)),
-     get_output_quant(lib_tx:get_attribute(quantity, O, 0))].
+    [get_output_color(lib_unspent:get_attribute(color, O, ?Uncolored)),
+     get_output_quant(lib_unspent:get_attribute(quantity, O, 0))].
 
 get_output_color(?Uncolored) -> <<?UNCOLORED:8>>;
 get_output_color(<<0:1>>) -> <<?UNCOLORED:8>>;
@@ -213,7 +212,7 @@ get_output_color(uncolored) -> <<?UNCOLORED:8>>;
 get_output_color(undefined) -> <<?UNCOLORED:8>>;
 get_output_color(Color) when is_atom(Color) ->
     CBin = erlang:term_to_binary(Color),
-    [<<?ATOM:8>>, lib_tx:int_to_varint(size(CBin)), CBin];
+    [<<?ATOM:8>>, lib_parse:int_to_varint(size(CBin)), CBin];
 get_output_color(Color) when is_binary(Color) ->
                  [<<?BINARY:8>>, Color].
 
@@ -257,7 +256,7 @@ next_color_quant(<<?UNCOLORED:8, Rest/binary>>) ->
     {_Quant, R2} = leb128:decode(Rest, unsigned),
                       {?Uncolored, 0, R2};
 next_color_quant(<<?ATOM:8, Rest/binary>>) ->
-    [Length, R] = lib_tx:varint_to_int(Rest),
+    [Length, R] = lib_parse:varint_to_int(Rest),
     LengthBits = Length*8,
     <<ColorBin:LengthBits/bitstring, R2/binary>> = R,
     {Quant, R3} = leb128:decode(R2, unsigned),

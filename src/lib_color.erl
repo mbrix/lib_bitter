@@ -31,6 +31,7 @@
 
 % Testing exports
 -export([find_marker/1,
+         encode_marker/2,
 	     build_color_list/2,
 	     uncolor_all/1,
 	     get_issue_color/2,
@@ -86,8 +87,8 @@
 %
 %
 
-quantity(V) -> lib_tx:get_attribute(quantity, V, 0).
-color(V) -> lib_tx:get_attribute(color, V, ?Uncolored).
+quantity(V) -> lib_unspent:get_attribute(quantity, V, 0).
+color(V) -> lib_unspent:get_attribute(color, V, ?Uncolored).
 
 val(Name, Map) ->
 	try maps:get(Name, Map) of
@@ -225,16 +226,15 @@ validate_field(_, _) -> throw(color_record_validation_error).
 
 % Open Assets Color Support
 %
-
-from(U) when is_record(U, utxop) ->
+from(U) when is_record(U, utxop) or is_record(U, us) ->
 	% Should do color identity lookup
 	#color{name = unknown,
-		   bin = lib_tx:get_attribute(color, U, ?Uncolored)};
+		   bin = lib_unspent:get_attribute(color, U, ?Uncolored)};
 
 from(O) when is_record(O, btxout) or is_record(O, btx) ->
 	% Should do color identity lookup
 	#color{name = unknown,
-		   bin  = lib_tx:get_attribute(color, O, ?Uncolored)}.
+		   bin  = lib_unspent:get_attribute(color, O, ?Uncolored)}.
 
 new() ->
 	#color{}.
@@ -273,7 +273,7 @@ new(Name, U) when is_record(U, utxop) ->
 
 new(Name, O) when is_record(O, btxout) or is_record(O, boutput) ->
 	#color{name = Name,
-		   bin = lib_tx:get_attribute(color, O, ?Uncolored)};
+		   bin = lib_unspent:get_attribute(color, O, ?Uncolored)};
 
 % Should be binary, but occasionally non-binary in test code
 new(Name, ColorBin) ->
@@ -428,8 +428,8 @@ do_issuance(IC, M, IssuedOutputs, Acc) ->
 		_ -> do_issuance(IC, MT, T, [set_color(O, IC, Q)|Acc])
 	end.
 
-set_color(R, Color, Quant) -> lib_tx:set_attribute(quantity, Quant, lib_tx:set_attribute(color, Color, R)).
-erase_color(R) -> lib_tx:del_attribute(quantity, lib_tx:del_attribute(color, R)).
+set_color(R, Color, Quant) -> lib_unspent:set_attribute(quantity, Quant, lib_unspent:set_attribute(color, Color, R)).
+erase_color(R) -> lib_unspent:del_attribute(quantity, lib_unspent:del_attribute(color, R)).
 
 
 get_issue_color([], _) -> ?Uncolored;
@@ -438,7 +438,7 @@ get_issue_color(Inputs, UnspentDict) ->
 		[I|_] = Inputs,
 		%io:format("~p ~p ~p ~n", [bblock:hash(I), bblock:index(I), UnspentDict]),
 		N = fetch(bblock:hash(I), bblock:index(I), UnspentDict),
-		crypto:hash(ripemd160, crypto:hash(sha256, bblock:script(N)))
+		crypto:hash(ripemd160, crypto:hash(sha256, lib_unspent:script(N)))
 	catch
 		E:R -> 
 			io:format("ZZZ E: ~p ~n R: ~p~n", [E, R]),
@@ -456,7 +456,7 @@ unspent_color_dict(UnspentList) ->
 unspent_color_dict([], ColorDict) -> ColorDict;
 unspent_color_dict(UnspentList, ColorDict) ->
     [H|T] = UnspentList,
-	case lib_tx:get_attribute(color, H, ?Uncolored) of
+	case lib_unspent:get_attribute(color, H, ?Uncolored) of
         ?Uncolored ->
             HColor = unspent_to_ic(H),
             C2 = dict:store(HColor, H, ColorDict),
@@ -483,7 +483,7 @@ get_spend_color(ColorList) ->
 
 
 unspent_to_ic(Unspent) ->
-	crypto:hash(ripemd160, crypto:hash(sha256, Unspent#utxop.script)).
+	crypto:hash(ripemd160, crypto:hash(sha256, lib_unspent:script(Unspent))).
 
 script_to_ic(Script) when is_binary(Script) ->
     crypto:hash(ripemd160, crypto:hash(sha256, Script)).
@@ -533,11 +533,10 @@ build_color_list(Inputs, UnspentDict) ->
 	try
 		lists:filtermap(fun(R) -> 
 				  N = fetch(bblock:hash(R), bblock:index(R), UnspentDict),
-				  
-					case lib_tx:get_attribute(color, N, ?Uncolored) of
+					case lib_unspent:get_attribute(color, N, ?Uncolored) of
 						?Uncolored -> false;
-						_ -> {true, {lib_tx:get_attribute(color, N, ?Uncolored),
-									 lib_tx:get_attribute(quantity, N, 0)}}
+						_ -> {true, {lib_unspent:get_attribute(color, N, ?Uncolored),
+									 lib_unspent:get_attribute(quantity, N, 0)}}
 					end end, Inputs)
 	catch E:R ->
 			io:format("XXX E: ~p ~n R: ~p~n", [E, R]),
@@ -556,17 +555,17 @@ is_color_address(Address) when is_list(Address) ->
 % Generate list of unique colors
 colors(Unspents) ->
 	sets:to_list(lists:foldl(fun(E, Acc) ->
-				sets:add_element(lib_tx:get_attribute(color, E, ?Uncolored), Acc) end, sets:new(), Unspents)).
+				sets:add_element(lib_unspent:get_attribute(color, E, ?Uncolored), Acc) end, sets:new(), Unspents)).
 
 readable_colors(NetworkParams, Unspents) ->
 	sets:to_list(lists:foldl(fun(E, Acc) ->
 									 sets:add_element(readable(NetworkParams,
-									 						   lib_tx:get_attribute(color, E, ?Uncolored)), Acc)
+									 						   lib_unspent:get_attribute(color, E, ?Uncolored)), Acc)
 							 end, sets:new(), Unspents)).
 
 readable_issue_colors(NetworkParams, Unspents) ->
 	dict:to_list(lists:foldl(fun(E, Acc) ->
-									 case lib_tx:get_attribute(color, E, ?Uncolored) of
+									 case lib_unspent:get_attribute(color, E, ?Uncolored) of
 									 	 ?Uncolored ->
 									 	 	 dict:store(readable(NetworkParams, unspent_to_ic(E)),
 									 	 	 			[lib_address:openassets(E),
@@ -585,11 +584,11 @@ color_aggregate(Payees) when is_list(Payees) ->
 encode_marker(M, Meta) ->
 	OA = erlang:iolist_to_binary([
 	<<16#4f:8, 16#41:8, 16#01, 16#00>>,
-	lib_tx:int_to_varint(length(M)),
+	lib_parse:int_to_varint(length(M)),
 	lists:map(fun(E) -> leb128:encode(E, unsigned) end, M),
-				lib_tx:int_to_varint(size(Meta)), Meta]),
+				lib_parse:int_to_varint(size(Meta)), Meta]),
 	erlang:iolist_to_binary([<<?OP_RETURN>>,
-			lib_tx:int_to_pushdata(size(OA)), OA]).
+			lib_parse:int_to_pushdata(size(OA)), OA]).
 
 
 create_marker_output(M) when is_list(M) ->
@@ -612,11 +611,11 @@ validate_marker(B) ->
 
 marker(P) when is_record(P, payment) ->
 	L = lists:takewhile(fun(E) ->
-								case lib_tx:get_attribute(color, E, ?Uncolored) of
+								case lib_unspent:get_attribute(color, E, ?Uncolored) of
 									?Uncolored -> false;
 									_ -> true
 								end end, P#payment.outputs),
-	M = lists:map(fun(E) -> lib_tx:get_attribute(quantity, E, 0) end, L),
+	M = lists:map(fun(E) -> lib_unspent:get_attribute(quantity, E, 0) end, L),
 	insert_marker(P, create_marker_output(M, P#payment.metaurl));
 
 % Iterate over O until marker is found
@@ -674,7 +673,7 @@ insert_marker(P, M) ->
 
 is_colored(Outputs) when is_list(Outputs) ->
 	UncoloredOutputs = lists:takewhile(fun(E) ->
-											   case lib_tx:get_attribute(color, E, ?Uncolored) of
+											   case lib_unspent:get_attribute(color, E, ?Uncolored) of
 											   	   ?Uncolored -> true;
 											   	   _ -> false
 											   end end, Outputs),

@@ -37,6 +37,8 @@
          add/5,
          remove/4,
          fold/3,
+         merge/2,
+         merge_filter/3,
          lookup/3,
          count/1,
          serialize/1,
@@ -45,8 +47,18 @@
          create_unspent/5,
          keys/1,
          deserialize/2,
-         deserialize2/2,
-         output/1]).
+         deserialize2/2]).
+
+%us record utility functions
+-export([hash/1,
+         index/1,
+         output/1,
+         set_output/2,
+         height/1,
+         set_height/2,
+         coinbase/1,
+         script/1,
+         value/1]).
 
 -include_lib("bitter.hrl").
 -include_lib("eunit/include/eunit.hrl").
@@ -55,7 +67,7 @@
 -define(SPENT_STATE, 2).
 
 new() -> #unspentset{type = ets,
-                     mapping = ets:new(us, [set, private, {keypos, 2}])}.
+                     mapping = ets:new(us, [set, public, {keypos, 2}])}.
 
 new(ets) -> new();
 new(dict) -> #unspentset{type = dict,
@@ -64,12 +76,15 @@ new(dict) -> #unspentset{type = dict,
 destroy(#unspentset{type = ets, mapping = M}) -> ets:delete(M);
 destroy(#unspentset{type = dict}) -> ok.
 
-add(UnspentOutput, #unspentset{type = ets,
+add([], U) -> U;
+add([H|T], U) -> add(T, add(H, U));
+
+add(#us{}=UnspentOutput, #unspentset{type = ets,
                                mapping = M}=U) ->
     true = ets:insert(M, UnspentOutput),
     U;
 
-add(UnspentOutput, #unspentset{type = dict,
+add(#us{}=UnspentOutput, #unspentset{type = dict,
                                mapping = M}=U) ->
     U#unspentset{mapping = dict:store(UnspentOutput#us.hash_index, UnspentOutput, M)}.
 
@@ -95,6 +110,20 @@ create_unspent(Output, Hash, Index, Height, Coinbase) ->
                          height_coinbase_output =  <<Height:32,
                                                    (coinbase_serialize(Coinbase)):8,
                                                    (bblock:compress_output(Output))/binary>>}.
+
+hash(#us{hash_index = <<Hash:32/binary, _/binary>>}) -> Hash.
+index(#us{hash_index = <<_:32/binary, Index:32>>}) -> Index.
+
+height(#us{height_coinbase_output = <<Height:32, _/binary>>}) -> Height.
+
+set_height(#us{height_coinbase_output = <<_:32, R/binary>>}=U, Height) -> U#us{height_coinbase_output = <<Height:32, R/binary>>}.
+
+coinbase(#us{height_coinbase_output = <<_:32, C:8, _/binary>>}) ->
+    coinbase_deserialize(C).
+
+script(#us{}=U) -> bblock:script(output(U)).
+
+value(#us{}=U) -> bblock:value(output(U)).
 
 keys(#unspentset{type = dict, mapping = M}) -> dict:fetch_keys(M).
 
@@ -136,12 +165,28 @@ count(#unspentset{type = dict, mapping=M}) -> dict:size(M).
 coinbase_serialize(true) -> 1;
 coinbase_serialize(false) -> 0.
 
+coinbase_deserialize(1) -> true;
+coinbase_deserialize(0) -> false.
+
 fold(Fun, AccStart, #unspentset{type = ets, mapping=M}) ->
     ets:foldl(fun(UnspentTx, Acc) ->
                       Fun(UnspentTx#us.hash_index, UnspentTx, Acc)
                       end, AccStart, M);
 
 fold(Fun, AccStart, #unspentset{type = dict, mapping=M}) -> dict:fold(Fun, AccStart, M).
+
+
+%% A will overwrite elements in B
+merge(#unspentset{}=A, #unspentset{}=B) -> 
+    fold(fun(Unspent, Merged) -> add(Unspent, Merged) end, B, A).
+
+merge_filter(A, B, FunDefs) ->
+    fold(fun(K, V, Acc) ->
+                  case run_fundefs(FunDefs, {K,V}) of
+                      true -> unspentset:add(V, Acc);
+                      false -> Acc
+                  end
+         end, B, A).
 
 status(#us{status = ?NEW_STATE}) -> new;
 status(#us{status = ?SPENT_STATE}) -> spent.
@@ -191,4 +236,25 @@ output(#us{height_coinbase_output = Bin}) ->
     <<_Height:32, _Coinbase:8, Rest/binary>> = Bin,
     bblock:decompress_output(Rest).
 
+set_output(#us{height_coinbase_output = Bin}=U, Output) ->
+    <<H:32, C:8, _/binary>> = Bin,
+    U#us{height_coinbase_output = <<H:32,C:8, (bblock:compress_output(Output))/binary>>}.
+
 address(Unspent) -> bblock:address(output(Unspent)).
+
+%% helper from bitjar_helper
+
+run_fundefs(Defs, Datum) ->
+	try
+		run_fundefs_do(Defs, Datum)
+	catch _:_ -> false
+	end.
+
+run_fundefs_do(F, Datum) when is_function(F) -> F(Datum);
+
+run_fundefs_do([], _) -> false;
+run_fundefs_do([D|T], Datum) ->
+	case D(Datum) of
+		true -> true;
+		false -> run_fundefs_do(T, Datum)
+	end.

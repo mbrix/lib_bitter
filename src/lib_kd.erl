@@ -43,9 +43,9 @@
 -include_lib("bitter.hrl").
 
 % Convert input into unspent
-add(I) when is_record(I, btxin) ->
-	add(#utxop{hash_index = {I#btxin.txhash, I#btxin.txindex},
-			script = I#btxin.txindex});
+%add(I) when is_record(I, btxin) ->
+%	add(#utxop{hash_index = {I#btxin.txhash, I#btxin.txindex},
+%			script = I#btxin.txindex});
 
 add(U) when is_record(U, utxop) ->
 	dict:store(U#utxop.hash_index, U, dict:new());
@@ -93,14 +93,13 @@ height(Dict, Height) ->
     oldest(height(dict, Dict, Height)).
 
 height(dict, Dict, Height) ->
-    dict:filter(fun(_K, V) ->
-                V#utxop.height =< Height
-        end, Dict).
+    dict:filter(fun(_K, V) -> lib_unspent:height(V) =< Height end, Dict).
 
 oldest(List) when is_list(List) ->
 	pop_unconfirmed(lists:sort(fun(A, B) ->
-									   if
-									   	   A#utxop.height =< B#utxop.height -> true;
+	                                   AHeight = lib_unspent:height(A),
+	                                   BHeight = lib_unspent:height(B),
+									   if  AHeight =< BHeight -> true;
 									   	   true -> false
 									   end end, List));
 
@@ -111,7 +110,7 @@ pop_unconfirmed(L) -> pop_unconfirmed(L, []).
 pop_unconfirmed([], Acc) -> lists:reverse(Acc);
 pop_unconfirmed(L, Acc) ->
     [H|T] = L,
-    case H#utxop.height of
+    case lib_unspent:height(H) of
         -1 -> pop_unconfirmed(T, [H|Acc]);
         _  -> L ++ lists:reverse(Acc)
     end.

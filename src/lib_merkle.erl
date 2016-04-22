@@ -53,16 +53,14 @@
 
 -record(merkle_node, {hash, left, right, leaf, tx, match}).
 
-build(Block) when is_record(Block, bbdef) ->
-	build(Block#bbdef.txdata);
-build(Objs) when is_list(Objs) ->
-	build(Objs, []);
+build(Block) when is_record(Block, bbdef) -> build(Block#bbdef.txdata);
+build(Block) when is_record(Block, bblock) -> build(bblock:txs(Block));
+build(Objs) when is_list(Objs) ->  build(Objs, []);
 build(_) -> error.
 
 build([], []) -> error;
 build([], [M]) -> {ok, M};
-build([], Nodes) -> 
-	build(lists:reverse(Nodes), []);
+build([], Nodes) -> build(lists:reverse(Nodes), []);
 build([H,H2|T], Nodes) ->
 	build(T, [#merkle_node{hash  = hash(<<(hash(H))/binary, (hash(H2))/binary>>),
 						   left  = mnode(H),
@@ -79,6 +77,13 @@ build([H], Nodes) ->
 						   tx    = undefined,
 						   match = 0}|Nodes]).
 
+mnode(H) when is_record(H, btx) -> #merkle_node{hash = bblock:hash(H),
+                                                left = undefined,
+                                                right = undefined,
+                                                leaf = true,
+                                                tx = H,
+                                                match = 0};
+
 mnode(H) when is_record(H, btxdef) -> #merkle_node{hash = H#btxdef.txhash,
 												   left = undefined,
 												   right = undefined,
@@ -88,6 +93,7 @@ mnode(H) when is_record(H, btxdef) -> #merkle_node{hash = H#btxdef.txhash,
 mnode(H) -> H.
 
 hash(H) when is_record(H, merkle_node) -> H#merkle_node.hash;
+hash(H) when is_record(H, btx) -> bblock:hash(H);
 hash(H) when is_record(H, btxdef) -> H#btxdef.txhash;
 hash(H) -> crypto:hash(sha256, crypto:hash(sha256, H)).
 
@@ -146,13 +152,13 @@ serialize(B) when is_record(B, merkle_block) ->
     (B#merkle_block.bits):32/little,
     (B#merkle_block.nonce):32/little,
     (B#merkle_block.total_transactions):32/little>>,
-     lib_tx:int_to_varint(length(B#merkle_block.hashes)),
+     lib_parse:int_to_varint(length(B#merkle_block.hashes)),
      B#merkle_block.hashes,
-     lib_tx:int_to_varint(size(B#merkle_block.flags)),
+     lib_parse:int_to_varint(size(B#merkle_block.flags)),
      B#merkle_block.flags]).
 
 %% Take a block, run matcher again merkletree, generate merkleblock
-serialize(Block, MatchFun) ->
+serialize(Block, MatchFun) when is_record(Block, bbdef) ->
 	{ok, MerkleRoot} = build(Block),
 	MerkleRoot2 = match(MerkleRoot, MatchFun),
 	{BitArray, Hashes} = partial(MerkleRoot2),
@@ -164,8 +170,21 @@ serialize(Block, MatchFun) ->
 				  nonce = Block#bbdef.nonce,
 				  total_transactions = Block#bbdef.txcount,
 				  hashes = Hashes,
-				  flags = BitArray}.
+				  flags = BitArray};
 
+serialize(Block, MatchFun) when is_record(Block, bblock) ->
+	{ok, MerkleRoot} = build(Block),
+	MerkleRoot2 = match(MerkleRoot, MatchFun),
+	{BitArray, Hashes} = partial(MerkleRoot2),
+	#merkle_block{version = bblock:version(Block),
+				  prev_block = bblock:previoushash(Block),
+				  merkle_root = bblock:merkleroot(Block),
+				  timestamp = bblock:timestamp(Block),
+				  bits = bblock:difficulty(Block),
+				  nonce = bblock:nonce(Block),
+				  total_transactions = bblock:tx_count(Block),
+				  hashes = Hashes,
+				  flags = BitArray}.
 
 validate(_Node, <<0:1, Rest/bitstring>>, [H|Hashes], Matched) ->
 	{H, Rest, Hashes, Matched};
@@ -183,7 +202,7 @@ validate(Node, <<1:1, Rest/bitstring>>, Hashes, Matched) ->
 	true = (H =/= H2), %% Left and Right hashes are never equal
 	{hash(<<H/binary, H2/binary>>), R3, Hashes3, Matched3}.
 
-validate(block, MBlock, Block) ->
+validate(block, MBlock, Block) when is_record(Block, bbdef) ->
 	true = (MBlock#merkle_block.version =:= Block#bbdef.version),
 	true = (MBlock#merkle_block.prev_block =:= Block#bbdef.previoushash),
 	true = (MBlock#merkle_block.merkle_root =:= Block#bbdef.merkleroot),
@@ -191,6 +210,13 @@ validate(block, MBlock, Block) ->
 	{ok, Root} = lib_merkle:build(Block),
 	validate(Root, MBlock#merkle_block.flags, MBlock#merkle_block.hashes);
 
+validate(block, MBlock, Block) when is_record(Block, bblock) ->
+	true = (MBlock#merkle_block.version =:= bblock:version(Block)),
+	true = (MBlock#merkle_block.prev_block =:= bblock:previoushash(Block)),
+	true = (MBlock#merkle_block.merkle_root =:= bblock:merkleroot(Block)),
+	true = (MBlock#merkle_block.bits =:= bblock:difficulty(Block)),	
+	{ok, Root} = lib_merkle:build(Block),
+	validate(Root, MBlock#merkle_block.flags, MBlock#merkle_block.hashes);
 
 validate(MerkleRoot, BitArray, Hashes) ->
 	%% Truncate the BitArray to the number of Hashes available

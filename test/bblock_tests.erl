@@ -124,7 +124,8 @@ parse_integration() ->
 	lists:foreach(fun({A, B}) -> ?assertEqual(A#btxdef.txhash, bblock:hash(B)) end, N),
     %% Conver the bbdef back to a bblock
     NewBblock = bblock:bblock(Bbdef),
-    ?assertEqual(Bblock, NewBblock).
+    %% The meta won't match because bbdefs insert default e_height and e_sumdiff
+    ?assertEqual(bblock:serialize(Bblock), bblock:serialize(NewBblock)).
 
 meta_transfer() ->
 	%% Serialization from bbdef to bblock, and from bblock to bbdef 

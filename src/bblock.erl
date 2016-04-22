@@ -85,6 +85,7 @@
 		 bbdef/1,
 		 btxdef/1,
 		 bblock/1,
+		 btx/1,
 		 info/1,
 		 address/1,
 		 output_set/1,
@@ -92,7 +93,10 @@
 		 strip_meta/1,
 		 find_opreturn/1,
 		 compress_output/1,
-		 decompress_output/1
+		 decompress_output/1,
+		 replace_script/2,
+		 signed/2,
+		 is_signed/1
 		]).
 
 %% Transaction Inputs
@@ -101,7 +105,8 @@
 		 seqnum/1]).
 
 %% Transaction Outputs
--export([value/1]).
+-export([set_value/2,
+         value/1]).
 
 %% A bblock is data structure composed of record
 %% with a data field pointing to binary blob
@@ -130,6 +135,8 @@ bblock(#bbdef{network = N}=B) ->
 	%% We want to skip adding color or quant values that aren't assigned.
 	Bblock#bblock{meta = map_attributes(Bblock, B)}.
 
+btx(#btx{}=B) -> B;
+btx(#btxdef{}=Btxdef) -> #btx{data = lib_tx:serialize_btxdef(Btxdef)}.
 
 %print_meta(B) ->
 %	foldl(fun(Btx, _) ->
@@ -140,20 +147,20 @@ bblock(#bbdef{network = N}=B) ->
 %
 
 putAttribute(Map, #boutput{}, #btxout{attributes = A}) when map_size(A) == 0 -> Map;
-putAttribute(Map, #boutput{offset = O}, #btxout{attributes = A}) -> 
-	maps:put(O, A, Map).
+putAttribute(Map, #boutput{offset = O}, #btxout{attributes = A}) ->  maps:put(O, A, Map);
+putAttribute(Map, #boutput{offset = O}, #boutput{meta = M}) -> maps:put(O, M, Map).
 
 putAttributeMap(#btx{}, AttrMap, #{}=NewMap) when map_size(NewMap) == 0 -> AttrMap;
 putAttributeMap(#btx{offset = O}, AttrMap, NewMap) -> maps:put(O, NewMap, AttrMap).
 
 
 add_basic_attributes(Map, B) ->
-	M2 = sparse_add(Map, e_height, B#bbdef.e_height, 1),
-	M3 = sparse_add(M2, e_sumdiff, B#bbdef.e_sumdiff, 0),
-	sparse_add(M3, e_next, B#bbdef.e_next, undefined).
+	M2 = sparse_add(Map, e_height, B#bbdef.e_height),
+	M3 = sparse_add(M2, e_sumdiff, B#bbdef.e_sumdiff),
+	sparse_add(M3, e_next, B#bbdef.e_next).
 
-sparse_add(Map, _Name, A, A) -> Map;
-sparse_add(Map, Name, A, _) -> maps:put(Name, A, Map).
+sparse_add(Map, _Name, undefined) -> Map;
+sparse_add(Map, Name, A) -> maps:put(Name, A, Map).
 
 %% Right now only Outputs hold attributes
 %% Convert a bbdef structure to a bblock map
@@ -162,8 +169,6 @@ map_attributes(#bblock{}=Bblock, Bbdef) ->
 				  [CurrentTxDef|T] = Txs,
 				  {NewMap, []} = foldl_outputs(fun(Output, {OutputAttrMap, Outputs}) ->
 				  					   [CurrentOutput|OT] = Outputs,
-				  					   ?assertEqual(CurrentOutput#btxout.script, script(Output)),
-								 	   ?assertEqual(CurrentOutput#btxout.txindex, index(Output)),
 									   {putAttribute(OutputAttrMap, Output, CurrentOutput) , OT}
 								end, {#{}, CurrentTxDef#btxdef.txoutputs}, Btx), 
 				  {putAttributeMap(Btx, AttrMap, NewMap), T}
@@ -179,10 +184,6 @@ map_attributes(#bbdef{}=Bbdef, Bblock) ->
 								 [CurrentTxDef|T] = OldTxs,
 								 {NewOutputs, []} = foldl_outputs(fun(Output, {NewOutputs, Outputs}) ->
 								 									 [CurrentOutput|Ot] = Outputs,
-								 									 ?assertEqual(CurrentOutput#btxout.script,
-								 									              script(Output)),
-								 									 ?assertEqual(CurrentOutput#btxout.txindex,
-								 									              index(Output)),
 																	 {[map_attrs(Output, CurrentOutput)|NewOutputs], Ot}
 															 end, {[], CurrentTxDef#btxdef.txoutputs}, Btx),
 								 {[CurrentTxDef#btxdef{txoutputs = lists:reverse(NewOutputs)}|Txs], T}
@@ -196,8 +197,7 @@ add_attr({ok, A}, _) -> A;
 add_attr(error, Default) -> Default.
 
 map_attrs(#boutput{meta = M}, Btxout) when map_size(M) < 1 -> Btxout;
-map_attrs(#boutput{meta = M}, Btxout) -> 
-    Btxout#btxout{attributes = M}.
+map_attrs(#boutput{meta = M}, Btxout) ->  Btxout#btxout{attributes = M}.
 
 to_json(B) -> jiffy:encode(to_map(B)).
 
@@ -439,9 +439,9 @@ locktime(#btx{data = <<_32/little, Rest/binary>>}) ->
 	<<NLocktime:32/little, _/binary>> = read_outputs(read_inputs(Rest)),
 	NLocktime.
 
-%% INPUTS
 index(#binput{data = <<_:32/binary, I:32/little, _/binary>>}) -> I;
 index(#boutput{ext = E}) -> maps:get(index, E);
+index(#btxout{txindex = Index}) -> Index;
 index(#btxin{txindex=I})->I;
 index(#utxop{hash_index = {_, I}}) -> I.
 
@@ -455,7 +455,11 @@ script(#boutput{data = <<_:64/little, Rest/binary>>}) ->
 	<<Script:ScriptLength/binary, _Next/binary >> = Rest2,
 	Script;
 
-script(#utxop{script = S}) -> S.
+script(#utxop{script = S}) -> S;
+script(#btxout{script = S}) -> S;
+script(#btxin{script=S}) -> S.
+
+seqnum(#btxin{seqnum = SN}) -> SN;
 
 seqnum(#binput{data = <<_:36/binary, Rest/binary>>}) ->
 	[Length, Rest2] = lib_parse:getVarInt(Rest),
@@ -463,10 +467,37 @@ seqnum(#binput{data = <<_:36/binary, Rest/binary>>}) ->
 	SeqNum.
 
 
+replace_script(#btxin{}=I, NewScript) -> I#btxin{script = NewScript};
+
+replace_script(#binput{data = D}=I, NewScript) ->
+    {_Next, Hash, Index, _Script, SeqNum} = getInput(D),
+    I#binput{data = <<Hash:32/binary,
+                      Index:32/little,
+                      (lib_parse:int_to_varint(size(NewScript)))/binary,
+                      NewScript/binary,
+                      SeqNum:32/little>>};
+
+replace_script(#btxout{}=B, NewScript) -> B#btxout{script = NewScript};
+
+replace_script(#boutput{data = <<Value:64/little, _/binary>>}=O, NewScript) ->
+    O#boutput{data = <<Value:64/little, 
+                       (lib_parse:int_to_varint(size(NewScript)))/binary,
+                       NewScript/binary>>}.
+
+signed(#btxin{}=B, Value) -> B#btxin{signed = Value};
+signed(#binput{}=B, Value) -> lib_unspent:set_attribute(signed, Value, B).
+
+is_signed(#btxin{signed=S}) -> S;
+is_signed(#binput{}=I) -> lib_unspent:get_attribute(signed, I, false).
+
 %% OUTPUTS
 %%
 
-value(#boutput{data = <<V:64/little, _/binary>>}) -> V.
+set_value(#boutput{data = <<_:64, R/binary>>}=B, NewValue) -> B#boutput{data = <<NewValue:64/little, R>>};
+set_value(#btxout{}=B, NewValue) -> B#btxout{value = NewValue}.
+
+value(#boutput{data = <<V:64/little, _/binary>>}) -> V;
+value(#btxout{value = V}) -> V.
 
 info(#btxout{}=Out) -> Out#btxout.info;
 info(#boutput{}=Out) -> lib_parse:parse_script(script(Out)).
@@ -665,7 +696,7 @@ inputs_outputs(#btx{data = <<_:32, D/binary>> = T, meta = M}) ->
 	Outputs= next_output(OutputCount, OutputCount, D, Outputbin, OutputStartOffset, M, FoldFun, []),
     {lists:reverse(Inputs), lists:reverse(Outputs)}.
 
-match_outputs(L, MatchFun) ->
+match_outputs(MatchFun, OutputList) ->
     lists:foldl(fun(#boutput{}=Out, {Matched, MatchedList}) ->
                         case MatchFun(Out) of
                             false -> {Matched, MatchedList};
@@ -676,7 +707,7 @@ match_outputs(L, MatchFun) ->
                             false -> {Matched, MatchedList};
                             true -> {true, [U|MatchedList]}
                         end
-                end, [], L).
+                end, {false, []}, OutputList).
 
 foreach(EachFun, #bblock{}=B) -> foldl(fun(Btx, _) -> EachFun(Btx), ok end, ok, B).
 
@@ -767,22 +798,22 @@ decompress_output(<<Type:8, Key:20/binary, V/binary>>) ->
 
 reconstruct_output(1, Key, Value, Rest) ->
     Script = <<?OP_DUP:8, ?OP_HASH160:8, 16#14:8, Key:20/binary, ?OP_EQUALVERIFY:8, ?OP_CHECKSIG:8>>,
-    #boutput{data = <<Value:64/little, (lib_tx:int_to_varint(size(Script)))/binary, Script/binary>>,
+    #boutput{data = <<Value:64/little, (lib_parse:int_to_varint(size(Script)))/binary, Script/binary>>,
              meta = deserialize_meta(Rest)};
 
 reconstruct_output(2, Key, Value, Rest) ->
     Script = <<?OP_SHA256:8, Key:33/binary, ?OP_EQUAL:8>>,
-    #boutput{data = <<Value:64/little, (lib_tx:int_to_varint(size(Script)))/binary, Script/binary>>,
+    #boutput{data = <<Value:64/little, (lib_parse:int_to_varint(size(Script)))/binary, Script/binary>>,
              meta = deserialize_meta(Rest)};
 
 reconstruct_output(3, Key, Value, Rest) ->
     Script = <<?OP_HASH160:8, 16#14:8, Key:20/binary, ?OP_EQUAL:8>>,
-    #boutput{data = <<Value:64/little, (lib_tx:int_to_varint(size(Script)))/binary, Script/binary>>,
+    #boutput{data = <<Value:64/little, (lib_parse:int_to_varint(size(Script)))/binary, Script/binary>>,
              meta = deserialize_meta(Rest)};
 
 reconstruct_output(4, Key, Value, Rest) ->
     Script = <<?OP_HASH160:8, Key:20/binary, ?OP_EQUAL:8>>,
-    #boutput{data = <<Value:64/little, (lib_tx:int_to_varint(size(Script)))/binary, Script/binary>>,
+    #boutput{data = <<Value:64/little, (lib_parse:int_to_varint(size(Script)))/binary, Script/binary>>,
              meta = deserialize_meta(Rest)}.
 
 

@@ -46,7 +46,7 @@ fake_colored_block() ->
 	fakeutxo:import().
 
 input_select() ->
-	Unspents = ets:tab2list(fakeutxo),
+	Unspents = get_unspents(), 
 	P = lib_transact:payee("1ANGt72gYkAPts4pV5hY5E3QUuU2vEMfBB",
                           "1ANGt72gYkAPts4pV5hY5E3QUuU2vEMfBB",
                           ?Uncolored,
@@ -56,7 +56,7 @@ input_select() ->
 	?assert(length(U2) < length(Unspents)),
 	?assert(length(Selected) > 0),
 	lists:foreach(fun(X) ->
-				?assertEqual(?Uncolored, lib_tx:get_attribute(color, X, ?Uncolored))
+				?assertEqual(?Uncolored, lib_unspent:get_attribute(color, X, ?Uncolored))
 		end, Selected),
 	{_U3, _Selected3, Total3} = lib_transact:get_inputs(list, Unspents, P#payee{value=2000000000000}, 0),
 	?assert(Total3 < 2000000000000), lib_transact:get_inputs(list, Unspents, P#payee{value=2000000000000}, 0),
@@ -68,7 +68,7 @@ input_select() ->
 	?assertEqual([], Selected5).
 
 outputs_uncolored() ->
-	Unspents = ets:tab2list(fakeutxo),
+	Unspents = get_unspents(), 
 	P = lib_transact:payee("1ANGt72gYkAPts4pV5hY5E3QUuU2vEMfBB",
                            "1ANGt72gYkAPts4pV5hY5E3QUuU2vEMfBB",
                            ?Uncolored,
@@ -79,7 +79,7 @@ outputs_uncolored() ->
 	?assert(Total >= 100000).
 
 outputs_overflow() ->
-	Unspents = ets:tab2list(fakeutxo),
+	Unspents = get_unspents(),
 	P = lib_transact:payee("1ANGt72gYkAPts4pV5hY5E3QUuU2vEMfBB",
                            "1ANGt72gYkAPts4pV5hY5E3QUuU2vEMfBB",
                            ?Uncolored,
@@ -92,7 +92,7 @@ outputs_overflow() ->
 
 
 outputs_colored() ->
-	Unspents = ets:tab2list(fakeutxo),
+	Unspents = get_unspents(), 
 	P = lib_transact:payee("1ANGt72gYkAPts4pV5hY5E3QUuU2vEMfBB",
                            "1ANGt72gYkAPts4pV5hY5E3QUuU2vEMfBB",
                            chartreuse,
@@ -101,12 +101,12 @@ outputs_colored() ->
 	?assert(length(U) < length(Unspents)),
 	?assert(length(S) > 0),
 	?assert(Remaining =:= 405),
-	?assert(lib_tx:get_attribute(quantity, O, 0) =:= 23000).
+	?assert(lib_unspent:get_attribute(quantity, O, 0) =:= 23000).
 
 
 simple_pay() ->
 	Change = lib_address:new("1ANGt72gYkAPts4pV5hY5E3QUuU2vEMfBB"),
-	Unspents = ets:tab2list(fakeutxo),
+	Unspents = get_unspents(), 
 	UnspentsDict = unspents_to_dict(Unspents), 
 	P = lib_transact:payee("1ANGt72gYkAPts4pV5hY5E3QUuU2vEMfBB",
                            "1ANGt72gYkAPts4pV5hY5E3QUuU2vEMfBB",
@@ -114,7 +114,7 @@ simple_pay() ->
                            23000),
 	{Remaining, Payment} = lib_transact:pay(lib_transact:payment(), Unspents, P),
 	[O|_] = Payment#payment.outputs,
-	?assert(lib_tx:get_attribute(quantity, O, 0) =:= 23000),
+	?assert(lib_unspent:get_attribute(quantity, O, 0) =:= 23000),
 	?assert(Payment#payment.r_value =:= 405),
 	?assert(Payment#payment.r_color =:= chartreuse),
 	% Finalize payment obj then recolor outputs
@@ -125,7 +125,7 @@ simple_pay() ->
 
 multiple_pay() ->
 	Change = lib_address:new("1ANGt72gYkAPts4pV5hY5E3QUuU2vEMfBB"),
-	Unspents = ets:tab2list(fakeutxo),
+	Unspents = get_unspents(), 
 	UnspentsDict = unspents_to_dict(Unspents), 
 	P = lib_transact:payee("1ANGt72gYkAPts4pV5hY5E3QUuU2vEMfBB",
                            "1ANGt72gYkAPts4pV5hY5E3QUuU2vEMfBB",
@@ -160,7 +160,7 @@ multiple_pay() ->
 
 
 simple_encode() ->
-	Unspents = ets:tab2list(fakeutxo),
+	Unspents = get_unspents(), 
 	Change = lib_address:new("1ANGt72gYkAPts4pV5hY5E3QUuU2vEMfBB"),
 	P = lib_transact:payee("1ANGt72gYkAPts4pV5hY5E3QUuU2vEMfBB",
                            "1ANGt72gYkAPts4pV5hY5E3QUuU2vEMfBB",
@@ -175,7 +175,7 @@ simple_encode() ->
 	{ok, _, _, _Tx} = lib_transact:finalize(Payment, Remaining, Change).
 
 payment_error() ->
-	Unspents = ets:tab2list(fakeutxo),
+	Unspents = get_unspents(), 
 	P = lib_transact:payee("1ANGt72gYkAPts4pV5hY5E3QUuU2vEMfBB",
                            "1ANGt72gYkAPts4pV5hY5E3QUuU2vEMfBB",
                            chartreuse,
@@ -183,7 +183,7 @@ payment_error() ->
 	?assertThrow(insufficient_funds, lib_transact:pay(lib_transact:payment(), Unspents, P)).
 
 simple_issue() ->
-	Unspents = ets:tab2list(fakeutxo),
+	Unspents = get_unspents(), 
 	UnspentsDict = unspents_to_dict(Unspents), 
 	C = #utxop{hash_index = {<<5,88,152,203,2,63,74,167,62,207,11,66,59,31,127,88,176,81,5,
                   229,240,148,98,68,171,67,72,165,96,176,194,34>>, 1},
@@ -204,7 +204,7 @@ simple_issue() ->
 
 
 multi_issue() ->
-	Unspents = ets:tab2list(fakeutxo),
+	Unspents = get_unspents(), 
 	UnspentsDict = unspents_to_dict(Unspents), 
 	% Need to manually specify an uncolored Issue address
 	C = #utxop{hash_index = {<<5,88,152,203,2,63,74,167,62,207,11,66,59,31,127,88,176,81,5,
@@ -240,7 +240,7 @@ multi_issue() ->
 issue_transfer() ->
 	Payment = simple_issue(),
 	Change = lib_address:new("1ANGt72gYkAPts4pV5hY5E3QUuU2vEMfBB"),
-	Unspents = ets:tab2list(fakeutxo),
+	Unspents = get_unspents(), 
 	UnspentsDict = unspents_to_dict(Unspents), 
 	P = lib_transact:payee("1ANGt72gYkAPts4pV5hY5E3QUuU2vEMfBB",
                            "1ANGt72gYkAPts4pV5hY5E3QUuU2vEMfBB",
@@ -257,7 +257,7 @@ issue_transfer() ->
 
 % Uncolored funds
 insufficient_funds() ->
-	Unspents = ets:tab2list(fakeutxo),
+	Unspents = get_unspents(), 
 	P = lib_transact:payee("1ANGt72gYkAPts4pV5hY5E3QUuU2vEMfBB",
                            "1ANGt72gYkAPts4pV5hY5E3QUuU2vEMfBB",
                            ?Uncolored,
@@ -266,7 +266,7 @@ insufficient_funds() ->
 
 
 nonexistent_color() ->
-	Unspents = ets:tab2list(fakeutxo),
+	Unspents = get_unspents(), 
 	P = lib_transact:payee("1ANGt72gYkAPts4pV5hY5E3QUuU2vEMfBB",
                            "1ANGt72gYkAPts4pV5hY5E3QUuU2vEMfBB",
                            raspberry,
@@ -276,7 +276,7 @@ nonexistent_color() ->
 
 no_fee() ->
 	Change = lib_address:new("1ANGt72gYkAPts4pV5hY5E3QUuU2vEMfBB"),
-	Unspents = ets:tab2list(fakeutxo),
+	Unspents = get_unspents(), 
 	AvailableValue = lib_transact:available(?Uncolored, Unspents),
 	P = lib_transact:payee("1ANGt72gYkAPts4pV5hY5E3QUuU2vEMfBB",
                            "1ANGt72gYkAPts4pV5hY5E3QUuU2vEMfBB",
@@ -287,7 +287,7 @@ no_fee() ->
 
 change_under_dust() ->
 	Change = lib_address:new("1ANGt72gYkAPts4pV5hY5E3QUuU2vEMfBB"),
-	Unspents = ets:tab2list(fakeutxo),
+	Unspents = get_unspents(), 
 	AvailableValue = lib_transact:available(?Uncolored, Unspents),
 	P = lib_transact:payee("1ANGt72gYkAPts4pV5hY5E3QUuU2vEMfBB",
                            "1ANGt72gYkAPts4pV5hY5E3QUuU2vEMfBB",
@@ -299,7 +299,7 @@ change_under_dust() ->
 
 % Enough for fee but creates dust output
 dust_fee() ->
-	Unspents = ets:tab2list(fakeutxo),
+	Unspents = get_unspents(), 
 	UncoloredValue = lib_transact:value(?Uncolored, Unspents),
 	P = lib_transact:payee("1ANGt72gYkAPts4pV5hY5E3QUuU2vEMfBB",
                            "1ANGt72gYkAPts4pV5hY5E3QUuU2vEMfBB",
@@ -333,8 +333,8 @@ color_transfer_fee() ->
 % Try and spend the total amount - fee
 minimal_spend() ->
 	Change = lib_address:new("1ANGt72gYkAPts4pV5hY5E3QUuU2vEMfBB"),
-	Unspent = lib_test:random_unspent(100),
-	UnspentColored = lib_test:random_unspent(99),
+	Unspent = lib_test:random_unspent(utxop, 100),
+	UnspentColored = lib_test:random_unspent(utxop, 99),
 	Unspent2 = Unspent#utxop{value =  ?DEFAULTFEE + ?DUSTLIMIT},
 	UnspentColored2 = lib_color:set_color(UnspentColored#utxop{value = ?DUSTLIMIT}, red, 2000),
 	Unspents = [UnspentColored2, Unspent2],
@@ -346,7 +346,7 @@ minimal_spend() ->
 	{Remaining, Payment} = lib_transact:pay(lib_transact:payment(), Unspents, P),
     ?assertEqual(1, length(Payment#payment.selected)),
     [A] = Payment#payment.selected,
-    ?assertEqual(?Uncolored, lib_tx:get_attribute(color, A, ?Uncolored)),
+    ?assertEqual(?Uncolored, lib_unspent:get_attribute(color, A, ?Uncolored)),
     ?assertMatch({ok, _, _, _}, lib_transact:finalize(Payment, Remaining, Change)).
 
 
@@ -391,7 +391,10 @@ transact_test_() ->
 
 unspents_to_dict(Utxo) ->
 	lists:foldl(fun(O, Acc) ->
-					dict:store(O#utxop.hash_index, O, Acc)
+	                    Hash = lib_unspent:hash(O),
+	                    Index = lib_unspent:index(O),
+					dict:store({Hash, Index}, O, Acc)
 				end, dict:new(), Utxo).
 
 
+get_unspents() -> fakeutxo:all_unspents().

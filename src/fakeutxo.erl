@@ -32,6 +32,8 @@
          import/1,
          block_tx/1,
 	     stop/0,
+	     foldl/2,
+	     all_unspents/0,
 	     lookup_tx/2]).
 
 % Fake Utxo creates a dictionary utxo for loading
@@ -39,6 +41,8 @@
 
 -include_lib("../include/bitter.hrl").
 -include_lib("eunit/include/eunit.hrl").
+
+-record(fakeutxo, {hash_index, unspent}).
 
 start() ->
 	ets:new(fakeutxo, [named_table, set, {keypos, 2}, {read_concurrency, true}]).
@@ -70,11 +74,20 @@ remove_inputs(Inputs) ->
 add_outputs(_, []) -> ok;
 add_outputs(TxHash, Outputs) ->
 	[O|T] = Outputs, 
-	ets:insert(fakeutxo, lib_test:output_to_unspent(TxHash, O)),
+	I = bblock:index(O),
+	ets:insert(fakeutxo, #fakeutxo{hash_index = {TxHash,I},
+	                               unspent = lib_test:output_to_unspent(O, TxHash, bblock:index(O), 100, false)}),
 	add_outputs(TxHash, T).
 
 lookup_tx(TxHash, TxIndex) ->
 	case ets:lookup(fakeutxo, {TxHash, TxIndex}) of
-		[N] -> {ok, N};
+		[N] -> {ok, N#fakeutxo.unspent};
 		_ -> notx
 	end.
+
+foldl(Fun, Acc) ->
+	ets:foldl(fun(Unspent, Acc2) ->  Fun(Unspent#fakeutxo.unspent, Acc2) end, Acc, fakeutxo).
+
+
+all_unspents() -> lists:map(fun(E) -> E#fakeutxo.unspent end, ets:tab2list(fakeutxo)).
+

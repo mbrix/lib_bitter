@@ -40,14 +40,14 @@
          create_outputs/1,
          create_output/0,
          create_output/1,
-         create_output/3,
          create_output/4,
          create_transaction/0,
          create_transaction/2,
          create_transaction/3,
-         create_block/0,
-	     create_block/2,
-	     create_chain/2,
+         create_block/2,
+	     create_block/4,
+	     create_simple_chain/3,
+	     create_simple_chain/4,
 	     sum_outputs/1,
 	     sum_inputs/1,
 	     create_random_input/0,
@@ -58,12 +58,16 @@
 	     create_random_output/0,
 	     create_random_output/1,
 	     create_random_output/2,
-		 output_to_unspent/2,
+		 output_to_unspent/5,
 	     random_p2sh_input/1,
 	     random_unspent/1,
-	     data/1]).
+	     random_unspent/2,
+	     random_unspent/4,
+	     data/1,
+	     output_to_input/1]).
 
 -include_lib("bitter.hrl").
+-include_lib("eunit/include/eunit.hrl").
 
 get_testfile(Filename) ->
 	filename:join(filename:absname("../test-data/"), Filename).
@@ -90,7 +94,8 @@ fake_block(Filename) ->
 % don't zero inputs
 fake_block_pure(Filename) ->
 	A = term_from_file(Filename),
-	A#bbdef{previoushash = ?CHAIN_ROOT}.
+	B = A#bbdef{previoushash = ?CHAIN_ROOT},
+	bblock:bblock(B).
 
 zero_inputs(Block) ->
 	Txdata = lists:map(fun(Tx) -> zero_inputs_tx(Tx) end,
@@ -106,22 +111,31 @@ create_random_address() ->
 
 % Lets fake and mock transactions
 inputs_from_outputs(Txhash, Outputs) ->
-	lists:map(fun(E) ->
-				create_input(Txhash, E#btxout.txindex) end, Outputs).
+	lists:map(fun(E) ->  create_input(Txhash, bblock:index(E)) end, Outputs).
 
-output_to_unspent(Txhash, O) ->
-	#utxop{hash_index = {Txhash, O#btxout.txindex},
-		   value = O#btxout.value,
-		   script = O#btxout.script,
-		   address = O#btxout.address,
-		   info = O#btxout.info, 
-		   attributes = #{color => filter_color(lib_tx:get_attribute(color, O, ?Uncolored)),
-		   				  quantity => lib_tx:get_attribute(quantity, O, 0)},
-		   height = 0,
-	       state = undefined,
-	       coinbase = false}.
+output_to_unspent(Output, Hash, Index, Height, Coinbase) when is_record(Output, btxout) ->
+    O = #boutput{data = <<(Output#btxout.value):64/little,
+                       (lib_parse:int_to_varint(size(Output#btxout.script)))/binary,
+                    (Output#btxout.script)/binary>>,
+                 meta = Output#btxout.attributes},
+                 output_to_unspent(O, Hash, Index, Height, Coinbase);
+%%	#utxop{hash_index = {Txhash, O#btxout.txindex},
+%%		   value = O#btxout.value,
+%%		   script = O#btxout.script,
+%%		   address = O#btxout.address,
+%%		   info = O#btxout.info, 
+%%		   attributes = #{color => filter_color(lib_tx:get_attribute(color, O, ?Uncolored)),
+%%		   				  quantity => lib_tx:get_attribute(quantity, O, 0)},
+%%		   height = 0,
+%%	       state = undefined,
+%%	       coinbase = false}.
+%%
 
-random_unspent(Height) ->
+
+output_to_unspent(Output, Hash, Index, Height, Coinbase) ->
+    unspentset:create_unspent(Output, Hash, Index, Height, Coinbase).
+
+random_unspent(utxop, Height) ->
     Address = create_random_address(),
 	PubkeyBin = lib_address:hash160(Address),
 	Script = lib_tx:create_script(p2pkh, PubkeyBin),
@@ -130,20 +144,34 @@ random_unspent(Height) ->
            script = Script,
            address = lib_address:hash160(Address),
            info = lib_parse:parse_script(Script),
+           attributes = #{color => ?Uncolored,
+                          quantity => 0},
            height = Height,
            state = ?Unspent_Confirmed,
            coinbase = false}.
 
-filter_color(uncolored) -> ?Uncolored;
-filter_color(R) -> R.
+random_unspent(Height) -> random_unspent(Height,
+                                         crypto:rand_bytes(32),
+                                         random:uniform(1000),
+                                         create_random_address()).
+
+random_unspent(Height, Hash, Index, Address) ->
+	PubkeyBin = lib_address:hash160(Address),
+	Script = lib_tx:create_script(p2pkh, PubkeyBin),
+    O = #boutput{data = <<(random:uniform(100000000)):64/little,
+                       (lib_parse:int_to_varint(size(Script)))/binary,
+                       Script/binary>>,
+             ext = #{index => Index},
+             meta = #{}},
+    output_to_unspent(O, Hash, Index, Height, false).
 
 random_p2sh_input(Type) ->
 	{Addr, KeyList} = lib_address:generate_p2sh_address(Type),
 	O = create_random_output(Addr),
 	Txhash = crypto:rand_bytes(32),
-	U = output_to_unspent(Txhash, O),
+	U = output_to_unspent(O, Txhash, bblock:index(O), 1, false),
 	UnspentDict = lib_kd:add(U),
-	I = lib_tx:create_input(U),
+	I = lib_unspent:create_input(U),
 	{Addr, KeyList, UnspentDict, I}.
 
 % Create Unspent / Input pairs
@@ -181,41 +209,70 @@ create_input(Txhash, Txindex) ->
 		   seqnum=0}.
 
 create_outputs(Num) ->
-	lists:map(fun(X) -> create_output(X) end,
-		lists:seq(0,Num-1)).
+	lists:map(fun(X) -> create_output(boutput, X) end, lists:seq(0,Num-1)).
 
 create_random_output() ->
-	create_output(random:uniform(100),
+	create_output(boutput,
+	              random:uniform(100),
 		          random:uniform(10000000),
-		lib_address:hash160(create_random_address())).
+		          lib_address:hash160(create_random_address())).
 
-create_output() -> create_output(0).
-create_output(Txindex) ->
-	create_output(Txindex,
-	           50000,
-	           lib_address:address_to_hash160("15MLJpjve5pjPD5aTyK1aBRZ2aW8Vwcwyx")).
-create_output(Txindex, Value, Address) when is_record(Address, addr) ->
-	create_output(Txindex, Value, lib_address:hash160(Address));
-create_output(Txindex, Value, Address) ->
-	#btxout{txindex=Txindex,
+create_output() -> create_output(boutput, 0).
+
+create_output(TxIndex) -> create_output(boutput, TxIndex).
+
+create_output(Type, TxIndex) ->
+	create_output(Type,
+	              TxIndex,
+	              50000,
+	              lib_address:address_to_hash160("15MLJpjve5pjPD5aTyK1aBRZ2aW8Vwcwyx")).
+
+create_output(p2sh, TxIndex, Value, Address) ->
+    Script = lib_tx:create_script(p2sh, Address),
+    #boutput{data = <<Value:64/little,
+                       (lib_parse:int_to_varint(size(Script)))/binary,
+                       Script/binary>>,
+             ext = #{index => TxIndex},
+             meta = #{}};
+
+create_output(Type, TxIndex, Value, Address) when is_record(Address, addr) ->
+	create_output_type(Type, TxIndex, Value, lib_address:hash160(Address));
+
+create_output(Type, TxIndex, Value, Address) ->
+    create_output_type(Type, TxIndex, Value, Address).
+
+
+create_output_type(boutput, TxIndex, Value, Address) ->
+    Script = lib_tx:create_script(p2pkh, Address),
+    #boutput{data = <<Value:64/little,
+                       (lib_parse:int_to_varint(size(Script)))/binary,
+                       Script/binary>>,
+             ext = #{index => TxIndex},
+             meta = #{}};
+
+create_output_type(btxout, TxIndex, Value, Address) ->
+	#btxout{txindex=TxIndex,
 		    value=Value,
+		    attributes = #{color => ?Uncolored,
+		                   quantity => 0},
 		    script = lib_tx:create_script(p2pkh, Address),
 		    address=Address}.
 
 create_random_output(Address) when is_record(Address, addr) ->
 	create_random_output(lib_address:type(Address),
-		                 lib_address:hash160(Address)).
+		                 lib_address:hash160(Address));
+
+create_random_output(Type) ->
+	create_output(Type,
+	              random:uniform(100),
+		          random:uniform(10000000),
+		          lib_address:hash160(create_random_address())).
+
 
 create_random_output(p2sh, Address) ->
 	create_output(p2sh, random:uniform(100),
 		          random:uniform(10000000),
 				  Address).
-
-create_output(p2sh, Txindex, Value, Address) ->
-	#btxout{txindex=Txindex,
-		    value=Value,
-		    script = lib_tx:create_script(p2sh, Address),
-		    address=Address}.
 
 create_transaction() ->
 	create_transaction([create_input()], create_outputs(1)).
@@ -224,41 +281,52 @@ create_transaction(Inputs, Outputs) ->
 	create_transaction(crypto:rand_bytes(32), Inputs, Outputs).
 create_transaction(Txhash, Inputs, Outputs) ->
 		#btxdef{txhash=Txhash,
+		        txversion=2,
 		        inputcount=length(Inputs),
 				outputcount=length(Outputs),
+				txlocktime=0,
 				txinputs=Inputs,
 			    txoutputs=Outputs}.
 
-create_block() -> create_block(crypto:rand_bytes(32), crypto:rand_bytes(32)).
-create_block(Hash, PreviousHash) ->
-			#bbdef{blockhash=Hash,
-		    previoushash=PreviousHash,
-		    difficulty=100,
-		    e_height=1}.
+create_block(Network, Txs) -> 
+    NetworkParams = btr_net_params:params(Network),
+    create_block(Network, maps:get(genesis_hash, NetworkParams), Txs, 1).
 
-create_chain(Iterations, NumOutputs) ->
-	A = create_block(),
-	C = create_outputs(NumOutputs),
-	T = create_transaction([create_input()], C),
-	NewBlock = A#bbdef{previoushash = ?CHAIN_ROOT,
-	                   txdata=[T],
-	                   e_height=1},
-	{Acc, _B} = lists:mapfoldl(fun(_, Prev) ->
-		A2 = create_block(),
-		[Tdata|_] = Prev#bbdef.txdata,
-		B2 = inputs_from_outputs(Tdata#btxdef.txhash,
-							     Tdata#btxdef.txoutputs),
-		C2 = create_outputs(NumOutputs),
-		T2 = create_transaction(B2, C2),
-		PrevDifficulty = Prev#bbdef.e_sumdiff,
-			N2 = A2#bbdef{txdata=[T2],
-						  previoushash=Prev#bbdef.blockhash,
-						  e_sumdiff=PrevDifficulty+100,
-				          e_height=Prev#bbdef.e_height+1},
-			{N2, N2}
-		end, NewBlock, lists:seq(0, Iterations-1)),
-			[NewBlock|Acc].
+create_block(Network, PreviousHash, Txs, Height) ->
+    NetworkParams = btr_net_params:params(Network),
+    {ok, MerkleRoot} = lib_merkle:build(Txs),
+    #bbdef{network = maps:get(magicbyte, NetworkParams),
+           headerlength = 80,
+           e_height = Height,
+           version = 2,
+           previoushash = PreviousHash,
+           merkleroot = lib_merkle:hash(MerkleRoot),
+           timestamp = timestamp(),
+           difficulty = 1000,
+           txdata = Txs,
+           nonce = random:uniform(100000)}.
 
+create_simple_chain(Network, Iterations, NumOutputs) when is_atom(Network) ->
+	T = create_transaction([create_input()], create_outputs(NumOutputs)),
+	Block = create_block(Network, [T]),
+	create_simple_chain(Block, Network, Iterations, NumOutputs).
+
+
+create_simple_chain(Block, Network, Iterations, NumOutputs) when is_record(Block, bbdef) ->
+    %% Seed the initial block
+	{Acc, _B} = lists:mapfoldl(fun(Seq, Prev) ->
+	                                   [Tdata|_] = Prev#bbdef.txdata,
+	                                   B2 = inputs_from_outputs(bblock:hash(bblock:btx(Tdata)), Tdata#btxdef.txoutputs),
+	                                   T2 = create_transaction(B2, create_outputs(NumOutputs)),
+	                                   A2 = create_block(Network, bblock:hash(bblock:bblock(Prev)), [T2], Seq),
+	                                   {A2, A2}
+	                           end, Block, lists:seq(1, Iterations-1)),
+	%% A is the block after genesis
+	[Block|Acc].
+
+timestamp() ->
+    {Mega, Sec, Micro} = now(),
+    Mega * 1000000 * 1000000 + Sec * 1000000 + Micro.
 
 sum_outputs(Txdata) ->
 	Sum = lists:foldl(fun(X, S) -> S + length(X#btxdef.txoutputs) end,
@@ -274,5 +342,24 @@ sum_inputs(Txdata) ->
 		0, Txdata),
 	{Sum, Expected}.
 
+output_to_input(#utxop{}=U) -> 
+		{Hash, Index} = U#utxop.hash_index,
+		#btxin{txhash=Hash,
+			   txindex=Index,
+			   script=U#utxop.script,
+			   seqnum=0};
 
 
+output_to_input(#us{}=U) -> output_to_input(unspentset:hash(U),
+                                            unspentset:index(U),
+                                            unspentset:output(U)).
+
+output_to_input(Hash, Index, #boutput{meta = M, ext = E}=O) ->
+    Script = bblock:script(O),
+    #binput{data = <<Hash:32/binary,
+            Index:32/little,
+            (lib_parse:int_to_varint(size(Script)))/binary,
+            Script/binary,
+            0:32/little>>,
+            meta = M,
+            ext = E}.

@@ -68,5 +68,7 @@ add_to_dict(Unspents) -> add_to_dict(Unspents, dict:new()).
 add_to_dict([], Acc) -> Acc;
 add_to_dict(Unspents, Acc) ->
     [H|T] = Unspents,
-    add_to_dict(T, dict:store(H#utxop.hash_index, H, Acc)).
+    Hash = lib_unspent:hash(H),
+    Index = lib_unspent:index(H),
+    add_to_dict(T, dict:store({Hash,Index}, H, Acc)).
 

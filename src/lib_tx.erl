@@ -27,14 +27,9 @@
 -module(lib_tx).
 -author('mbranton@emberfinancial.com').
 
--export([int_to_varint/1,
-	     varint_to_int/1,  %duped code
-	     int_to_pushdata/1,
-	     pushdata_to_int/1,
-	     serialize/1,
+-export([serialize/1,
 	     serialize_btxdef/1,
 	     create_tx/0,
-	     create_input/1,
 		 create_output/4,
 	     add_input/2,
 	     add_output/2,
@@ -64,10 +59,7 @@
 	     sigs/1,
 	     total/1,
 	     to_json/2,
-	     to_map/2,
-	     get_attribute/3,
-	     set_attribute/3,
-	     del_attribute/2]).
+	     to_map/2]).
 
 
 -include_lib("bitter.hrl").
@@ -120,15 +112,15 @@ sign_tx(SigHashType, Tx, KeypairDict, Proposals, Unspents) ->
 
 sign_inputs(SigHashType, Inputs, Tx, KeypairDict, Proposals, Unspents) ->
 	lists:map(fun(I) ->
-		case dict:find({I#btxin.txhash, I#btxin.txindex}, Unspents) of
+                      case dict:find({bblock:hash(I), bblock:index(I)}, Unspents) of
 		{ok, Unspent} ->
 			case input_type(I) of
 				{unrecognized, Hash160} ->
-					verify_input(unrecognized, SigHashType, Tx, Hash160, I, KeypairDict, Proposals, Unspent#utxop.script);
+					verify_input(unrecognized, SigHashType, Tx, Hash160, I, KeypairDict, Proposals, lib_unspent:script(Unspent));
                 {InputType, Hash160} ->
-					sign_input(InputType, SigHashType, Tx, Hash160, I, KeypairDict, Proposals, Unspent#utxop.script);
+					sign_input(InputType, SigHashType, Tx, Hash160, I, KeypairDict, Proposals, lib_unspent:script(Unspent));
                 {InputType, _SubType, Hash160} ->
-					sign_input(InputType, SigHashType, Tx, Hash160, I, KeypairDict, Proposals, Unspent#utxop.script)
+					sign_input(InputType, SigHashType, Tx, Hash160, I, KeypairDict, Proposals, lib_unspent:script(Unspent))
 				end;
 			_ -> I
 		end
@@ -137,25 +129,24 @@ sign_inputs(SigHashType, Inputs, Tx, KeypairDict, Proposals, Unspents) ->
 
 verify_input(p2pkh, SigHashType, Tx, _Key, Input, _KeypairDict, _, Script) ->
 	Hash = hash_tx(intermediate_tx(SigHashType, clear_input_scripts(replace_input_script(Tx, Input, Script), Input))),
-	case decode_script(p2pkh, Input#btxin.script) of
+    case decode_script(p2pkh, bblock:script(Input)) of
 		{Signature, PublicKey} ->
-			Input#btxin{signed = verify_signature(Hash, Signature, PublicKey)};
-		empty_script ->
-			Input#btxin{signed = false}
+            bblock:signed(Input, verify_signature(Hash, Signature, PublicKey));
+		empty_script -> bblock:signed(Input, false)
 	end;
 
 verify_input(p2sh, SigHashType, Tx, Key, Input, KeypairDict, Proposals, Script) ->
-	{{Info, RedeemScript}, Sigs} = sigs(Input#btxin.script),
+	{{Info, RedeemScript}, Sigs} = sigs(bblock:script(Input)),
 	Hash = hash_tx(intermediate_tx(SigHashType,
 				clear_input_scripts(replace_input_script(Tx, Input, RedeemScript), Input))),
 	% Iterate over every signature and validate
 	{{M,_N}, Keylist} = Info,
 	ValidSigs = lists:filter(fun(E) ->
 					isvalid(E, Hash, SigHashType, Keylist) end, Sigs),
-	I2 = Input#btxin{signed = (length(ValidSigs) >= M)},
-	case I2#btxin.signed of
-		true ->
-			I2;
+	IsSigned = (length(ValidSigs) >= M),
+	I2 = bblock:signed(Input, IsSigned),
+	case IsSigned of
+		true -> I2;
 		false ->
 			% Lets try and  sign it.	
 			sign_input(p2sh, SigHashType, Tx, Key, Input, KeypairDict, Proposals, Script)
@@ -177,10 +168,8 @@ sign_input(p2pkh, SigHashType, Tx, Key, Input, KeypairDict, _, Script) ->
 		{ok, {PublicKey, PrivateKey}} ->
 			Signature = create_signature(Hash, PublicKey, PrivateKey),
 			ScriptSig = create_scriptsig(SigHashType, Signature, PublicKey),
-			Input#btxin{script = ScriptSig,
-			   signed = verify_signature(Hash, Signature, PublicKey)};
-		error ->
-			Input
+			bblock:signed(bblock:replace_script(Input, ScriptSig), verify_signature(Hash, Signature, PublicKey));
+		error -> Input
 	end;
 
 sign_input(p2sh, SigHashType, Tx, Address, Input, KeypairDict, Proposals, _) ->
@@ -195,7 +184,7 @@ sign_input(p2sh, SigHashType, Tx, Address, Input, KeypairDict, Proposals, _) ->
 			Hash = hash_tx(intermediate_tx(SigHashType,
 						clear_input_scripts(replace_input_script(Tx, Input, RedeemScript), Input))),
 			% First thing parse existing scriptsigs and make a stack
-			{_, ScriptStack} = sigs(Input#btxin.script),
+			{_, ScriptStack} = sigs(bblock:script(Input)),
 			{ScriptSigs, _} = lists:foldl(fun(X, {Sigs, Stack}) ->
 					case X of
 						{PublicKey, proposal} ->
@@ -223,10 +212,8 @@ sign_input(p2sh, SigHashType, Tx, Address, Input, KeypairDict, Proposals, _) ->
 													lists:reverse(ScriptSigs),
 													<<RLength:8/little>>,
 													RedeemScript]),
-			Input#btxin{script = ScriptSigsBin,
-			        signed = is_complete(ScriptSigsBin)};
-		error ->
-			Input
+			bblock:signed(bblock:replace_script(Input, ScriptSigsBin), is_complete(ScriptSigsBin));
+		error -> Input
 	end.
 
 
@@ -261,8 +248,7 @@ sigs(ScriptSig, Acc) ->
 	
 
 is_signed(Tx) ->
-	not lists:any(fun(I) -> I#btxin.signed =/= true end,
-		Tx#btxdef.txinputs).
+	not lists:any(fun(I) -> bblock:is_signed(I) =/= true end, Tx#btxdef.txinputs).
 
 readable_txhash(binary, TxHash) ->
 	iolist_to_binary(readable_txhash(TxHash)).
@@ -309,7 +295,7 @@ create_scriptsig(SigHashType, Signature, PublicKey) ->
 	  PublicKey/bitstring>>.
 
 find_proposal(Input, PublicKey, ProposalDict) ->
-	case dict:find({Input#btxin.txhash, Input#btxin.txindex, PublicKey},
+    case dict:find({bblock:hash(Input), bblock:index(Input), PublicKey},
 			ProposalDict) of
 		{ok, Signature} ->
 			Signature;
@@ -320,11 +306,10 @@ find_proposal(Input, PublicKey, ProposalDict) ->
 get_keypair(Key, KeypairDict) ->
 	dict:find(Key, KeypairDict).
 
-unspent_type(Output) ->
-	lib_parse:parse_script(Output#utxop.script).
+unspent_type(Output) -> lib_parse:parse_script(lib_unspent:script(Output)).
 
 input_type(Input) ->
-	lib_parse:parse_script(Input#btxin.script).
+	lib_parse:parse_script(bblock:script(Input)).
 
 dhash_tx(Tx) when is_record(Tx, btxdef) ->
 	hash_tx(serialize_btxdef(Tx));
@@ -349,49 +334,35 @@ create_tx() ->
 		    txinputs=[],
 		    txoutputs=[]}.
 
-create_input(U) when is_record(U, utxop) ->
-	{Hash, Index} = U#utxop.hash_index,
-	%Script = Unspent#utxop.script,
-	% Empty unsigned script
-	SeqNum = 4294967295, % 0xFFFFFFFF
-	#btxin{txhash = Hash,
-		   txindex = Index,
-	   	   %script = <<>>,
-	   	   script = U#utxop.script,
-		   seqnum = SeqNum};
-
-create_input(I) when is_record(I, btxin) ->
-	I.
-
 % Required for P2SH signing
 
-% Clear input scripts for every input but Input#btxin.txhash
+% Clear input scripts for every input but Input's txhash
 clear_input_scripts(Tx, Input) ->
-	Hash = Input#btxin.txhash,
-	Index = Input#btxin.txindex,
+	Hash = bblock:hash(Input),
+	Index = bblock:index(Input),
 	Tx#btxdef{txinputs = lists:map(fun(I) ->
-				case I#btxin.txhash of
-					Hash ->
-					    case I#btxin.txindex of
-					            Index -> I;
-                                _ -> I#btxin{script = <<>>}
-                            end;
-					_ ->
-							I#btxin{script = <<>>}
-			end end, Tx#btxdef.txinputs)}.
+                                           case bblock:hash(I) of
+                                               Hash ->
+                                                   case bblock:index(I) of
+                                                       Index -> I;
+                                                       _ -> bblock:replace_script(I, <<>>)
+                                                   end;
+                                               _ ->
+                                                   bblock:replace_script(I, <<>>)
+                                           end end, Tx#btxdef.txinputs)}.
 
 replace_input_script(Tx, Input, NewScript) ->
-	Hash = Input#btxin.txhash,
-	Index = Input#btxin.txindex,
+	Hash = bblock:hash(Input),
+	Index = bblock:index(Input),
 	Tx#btxdef{txinputs = lists:map(fun(I) ->
-				case I#btxin.txhash of
-					Hash ->
-					    case I#btxin.txindex of
-					            Index -> I#btxin{script = NewScript};
-					            _ -> I
-                            end;
-					_ -> I
-			end end, Tx#btxdef.txinputs)}.
+                                           case bblock:hash(I)  of
+                                               Hash ->
+                                                   case bblock:index(I) of 
+                                                       Index -> bblock:replace_script(I, NewScript);
+                                                       _ -> I
+                                                   end;
+                                               _ -> I
+                                           end end, Tx#btxdef.txinputs)}.
 
 create_script(p2pkh, PubkeyBin) ->
 	<<?OP_DUP:8, ?OP_HASH160:8, 16#14:8, PubkeyBin:160/bitstring, ?OP_EQUALVERIFY:8, ?OP_CHECKSIG:8>>;
@@ -425,13 +396,11 @@ create_output(Type, Color, ColorQuant, PubkeyBin) ->
 % Add unspents to a TX
 % Translated into Inputs
 
-add_unspent(Tx, Unspent) when is_record(Unspent, utxop) ->
-	add_unspent(Tx, [Unspent]);
-
 add_unspent(Tx, UnspentList) when is_list(UnspentList) ->
-	add_input(Tx, lists:map(fun(E) ->
-				    create_input(E)
-		      end, UnspentList)).
+	add_input(Tx, lists:map(fun(E) -> lib_unspent:create_input(E) end, UnspentList));
+
+add_unspent(Tx, Unspent) -> add_unspent(Tx, [Unspent]).
+
 
 add_input(Tx, Inputs) when is_list(Inputs) ->
 	lists:foldl(fun(E,Acc) ->
@@ -444,9 +413,8 @@ add_input(Tx, Input) ->
 		      txinputs=NewInputs}.
 
 add_output(Tx, Outputs) when is_list(Outputs) ->
-	lists:foldl(fun(E,Acc) ->
-				add_output(Acc, E)
-		end, Tx, Outputs); 
+	lists:foldl(fun(E,Acc) -> add_output(Acc, E) end, Tx, Outputs);
+
 add_output(Tx, Output) ->
 	NewOutput = Output#btxout{txindex = Tx#btxdef.outputcount},
 	NumOutputs = Tx#btxdef.outputcount + 1,
@@ -488,69 +456,38 @@ serialize_btxdef(Tx) ->
 	TxOutputs	            =  Tx#btxdef.txoutputs,  
 	erlang:iolist_to_binary(
 	[<< TransactionVersion:32/little>>,
-		int_to_varint(InputCount),
+		lib_parse:int_to_varint(InputCount),
 		serialize_inputs(TxInputs),
-		int_to_varint(OutputCount),
+		lib_parse:int_to_varint(OutputCount),
 		serialize_outputs(TxOutputs),
 		<<TransactionLockTime:32/little>>]).
 
 
 serialize_inputs(Inputs) when is_list(Inputs) ->
-	lists:map(fun(I) ->
-				serialize_inputs(I)
-		      end, Inputs);
+	lists:map(fun(I) -> serialize_inputs(I) end, Inputs);
+
 serialize_inputs(I) ->
-	Txhash = I#btxin.txhash, 
-	TxIndex =I#btxin.txindex,
-	Script = I#btxin.script,
-	SeqNum = I#btxin.seqnum,
+	Txhash = bblock:hash(I), 
+	TxIndex = bblock:index(I),
+	Script = bblock:script(I),
+	SeqNum = bblock:seqnum(I),
 	ScriptLength = size(Script),
-	BitLength = ScriptLength*8,
-	[<<Txhash:256/bitstring,
+	[<<Txhash:32/binary,
 	   TxIndex:32/little>>,
-	   int_to_varint(ScriptLength),
-	   <<Script:BitLength/bitstring,
+	   lib_parse:int_to_varint(ScriptLength),
+	   <<Script:ScriptLength/binary,
 	     SeqNum:32/little>>].
 
 serialize_outputs(Outputs) when is_list(Outputs) ->
-	lists:map(fun(O) ->
-				serialize_outputs(O)
-		      end, Outputs);
+	lists:map(fun(O) -> serialize_outputs(O) end, Outputs);
+
 serialize_outputs(O) ->
-	Value = O#btxout.value,
-	Script = O#btxout.script,
+	Value = bblock:value(O),
+	Script = bblock:script(O),
 	[<<Value:64/little>>,
-	int_to_varint(size(Script)),
+	lib_parse:int_to_varint(size(Script)),
 	<<Script/binary>>].
 
-
-%% varint
-
-int_to_varint(Int) when Int < 253 -> <<Int:8/little>>;
-int_to_varint(Int) when Int =< 65535 -> <<253:8, Int:16/little>>;
-int_to_varint(Int) when Int =< 4294967295 -> <<254:8, Int:32/little>>;
-int_to_varint(Int) when Int > 4294967295  -> <<255:8, Int:64/little>>;
-int_to_varint(_) -> error.
-
-varint_to_int(<< TXCount:8, BinRest/binary >>) when TXCount < 253 -> [TXCount, BinRest];
-varint_to_int(<< 253:8, TXCount:16/little, BinRest/binary >>) -> [TXCount, BinRest];
-varint_to_int(<< 254:8, TXCount:32/little, BinRest/binary >>) -> [TXCount, BinRest];
-varint_to_int(<< 255:8, TXCount:64/little, BinRest/binary >>) -> [TXCount, BinRest];
-varint_to_int(_) -> error.
-
-%% pushdata
-
-int_to_pushdata(Int) when Int < 76 -> <<Int:8/little>>;
-int_to_pushdata(Int) when Int =< 255 -> <<?OP_PUSHDATA1:8, Int:8/little>>;
-int_to_pushdata(Int) when Int =< 65535 -> <<?OP_PUSHDATA2:8, Int:16/little>>;
-int_to_pushdata(Int) when Int =< 4294967295 -> <<?OP_PUSHDATA4:8, Int:32/little>>;
-int_to_pushdata(_) -> error.
-
-pushdata_to_int(<< TXCount:8, BinRest/binary >>) when TXCount < 76 -> [TXCount, BinRest];
-pushdata_to_int(<< ?OP_PUSHDATA1:8, TXCount:8/little, BinRest/binary >>) -> [TXCount, BinRest];
-pushdata_to_int(<< ?OP_PUSHDATA2:8, TXCount:16/little, BinRest/binary >>) -> [TXCount, BinRest];
-pushdata_to_int(<< ?OP_PUSHDATA4:8, TXCount:32/little, BinRest/binary >>) -> [TXCount, BinRest];
-pushdata_to_int(_) -> error.
 
 
 % Vector conversion
@@ -573,7 +510,7 @@ add_outputs(Tx) -> add_outputs(Tx, 0).
 add_outputs([], Value) -> Value;
 add_outputs(O, Value) ->
     [H|T] = O,
-    add_outputs(T, Value + H#btxout.value).
+    add_outputs(T, Value + bblock:value(H)).
 
 to_json(NetworkParams, Tx) -> jiffy:encode(to_map(NetworkParams, Tx)).
 
@@ -602,16 +539,17 @@ hexstr_txhash(Tx) ->
 
 inputs_to_json(Txinputs) ->
     lists:foldl(fun(E, Acc) ->
-                Txid = iolist_to_binary(hex:bin_to_hexstr(hex:bin_reverse(E#btxin.txhash))),
-                case E#btxin.txhash of
+                        Hash = bblock:hash(E),
+                Txid = iolist_to_binary(hex:bin_to_hexstr(hex:bin_reverse(Hash))),
+                case Hash of
                     ?COINBASE ->
-                        [#{coinbase => iolist_to_binary(hex:bin_to_hexstr(E#btxin.script)),
-                           sequence => E#btxin.seqnum}|Acc];
+                        [#{coinbase => iolist_to_binary(hex:bin_to_hexstr(bblock:script(E))),
+                           sequence => bblock:seqnum(E)}|Acc];
                     _ ->
                         [#{txid => Txid,
-                           vout => E#btxin.txindex,
-                           scriptsig => scriptsig_to_json(E#btxin.script),
-                           sequence => E#btxin.seqnum}|Acc]
+                           vout => bblock:index(E),
+                           scriptsig => scriptsig_to_json(bblock:script(E)),
+                           sequence => bblock:seqnum(E)}|Acc]
                         end end, [], Txinputs).
 
 scriptsig_to_json(Script) ->
@@ -621,50 +559,13 @@ scriptsig_to_json(Script) ->
 
 outputs_to_json(NetworkParams, Txoutputs) ->
     {_, O} = lists:foldl(fun(E, {Vcounter, Outputs}) ->
-                {Vcounter+1, [#{value => lib_transact:satoshi_to_btc(E#btxout.value),
+                {Vcounter+1, [#{value => lib_transact:satoshi_to_btc(bblock:value(E)),
                                 vout => Vcounter,
-                                scriptPubKey => scriptpubkey_to_json(E#btxout.script),
-                                color => color_to_json(NetworkParams, get_attribute(color, E, ?Uncolored)),
-                                quantity => get_attribute(quantity, E, 0)}|Outputs]}
+                                scriptPubKey => scriptpubkey_to_json(bblock:script(E)),
+                                color => color_to_json(NetworkParams, lib_unspent:get_attribute(color, E, ?Uncolored)),
+                                quantity => lib_unspent:get_attribute(quantity, E, 0)}|Outputs]}
             end, {0, []}, Txoutputs),
     O.
-
-get_attribute(Attr, #boutput{}=B, Default) ->
-	case bblock:getattr(Attr, B) of
-		error -> Default;
-		{ok, Attribute} -> Attribute
-	end;
-
-get_attribute(Attr, #btxout{attributes = A}, Default) ->
-	case maps:find(Attr, A) of
-		error -> Default;
-		{ok, Attribute} -> Attribute
-	end;
-
-get_attribute(Attr, #utxop{attributes = A}, Default) ->
-	case maps:find(Attr, A) of
-		error -> Default;
-		{ok, Attribute} -> Attribute
-	end.
-
-set_attribute(Attr, Value, #boutput{}=B) -> {ok, Out} = bblock:setattr(Attr, Value, B),
-											Out;
-set_attribute(Attr, Value, #btx{}=B) -> {ok, Out} = bblock:setattr(Attr, Value, B),
-										Out;
-
-set_attribute(Attr, Value, #btxout{attributes = A}=Out) ->
-	Out#btxout{attributes = maps:put(Attr, Value, A)};
-
-set_attribute(Attr, Value, #utxop{attributes = A}=Unspent) ->
-	Unspent#utxop{attributes = maps:put(Attr, Value, A)}.
-
-del_attribute(Attr, #btxout{attributes = A}=Out) -> Out#btxout{attributes = maps:remove(Attr, A)};
-del_attribute(Attr, #btx{}=B) -> {ok, Out} = bblock:delattr(Attr, B),
-									 Out;
-del_attribute(Attr, #boutput{}=B) -> {ok, Out} = bblock:delattr(Attr, B),
-									 Out;
-del_attribute(Attr, #utxop{attributes = A}=Unspent) -> Unspent#utxop{attributes = maps:remove(Attr, A)}.
-
 
 scriptpubkey_to_json(Script) ->
     Hexbin = iolist_to_binary(hex:bin_to_hexstr(Script)),

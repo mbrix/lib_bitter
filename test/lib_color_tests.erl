@@ -66,8 +66,11 @@ uncolored_list() ->
 
 mixed_list() ->
 	Inputs = colored_inputs(red) ++ colored_inputs(blue),
+	%?debugFmt("~p~n", [Inputs]),
 	Unspents = inputs_to_unspents(Inputs),
+	%?debugFmt("~p~n", [Unspents]),
 	ColorList = lib_color:build_color_list(Inputs, Unspents),
+	%?debugFmt("~p~n", [ColorList]),
 	?assertEqual(length(Inputs), length(ColorList)),
 	[F|_] = ColorList,
 	?assertMatch({red, 1000}, F),
@@ -90,7 +93,7 @@ issue_color() ->
 	Inputs = outputs_to_inputs(Outputs),
 	Unspents = inputs_to_unspents(Inputs),
 	[H|_] = Outputs,
-	Color = crypto:hash(ripemd160, crypto:hash(sha256, H#utxop.script)),
+	Color = crypto:hash(ripemd160, crypto:hash(sha256, lib_unspent:script(H))),
 	RealColor = lib_color:get_issue_color(Inputs, Unspents),
 	?assertEqual(Color, RealColor).
 
@@ -452,25 +455,6 @@ rainbow_colors() ->
 	[H8|_T8] = T7,
 	?assertEqual(?Uncolored, lib_color:color(H8)), 
 	?assertEqual(0, lib_color:quantity(H8)). 
-
-
-nefarious_markers() ->
-	Inputs = colored_inputs(red),
-	Unspents = inputs_to_unspents(Inputs),
-	QList = [100.3, -200],
-	MOutput = create_output(?Uncolored,0,1),
-	Marker = create_marker(MOutput, QList),
-	O = [create_output(),
-		 Marker,
-			create_output(?Uncolored, 0, 2)],
-	TransferOutputs = lib_color:color_outputs(Inputs, O, Unspents),
-	[H|T] = TransferOutputs,
-	?assertEqual(3, length(TransferOutputs)),
-	?assertEqual(0, lib_color:quantity(H)),
-	?assertEqual(?Uncolored, lib_color:color(H)), % Marker
-	[H2|_T2] = T,
-	?assertEqual(?Uncolored, lib_color:color(H2)),
-	?assertEqual(0,lib_color:quantity(H2)).
 
 color_quantity() ->
 	Unspents = colored_outputs(red),
@@ -982,11 +966,11 @@ color_test_() ->
 		{"No Color Marker", fun no_marker/0},
 		{"Only marker malformed", fun marker_only/0},
 		{"Uncolored List", fun uncolored_list/0},
-		{"Mixed Color List", fun mixed_list/0},
+        {"Mixed Color List", fun mixed_list/0},
 		{"Uncoloring", fun uncolor_outputs/0},
-		{"Issue Color", fun issue_color/0},
+        {"Issue Color", fun issue_color/0},
 		{"Single color quant", fun single_color_quant/0},
-		{"Zero color quant", fun zero_color_quant/0},
+        {"Zero color quant", fun zero_color_quant/0},
 		{"Partial quantity", fun partial_quant/0},
 		{"Multiple fill plus partial", fun multi_partial_quant/0},
 		{"Total multiple fill", fun total_fill_quant/0},
@@ -1004,7 +988,6 @@ color_test_() ->
 		{"Full color transfer.", fun full_color_transfer/0},
 		{"Multi color transfer and issue.", fun multi_color_transfer_issue/0},
 		{"Rainbow test", fun rainbow_colors/0},
-		{"Nefarious malformed or malicious markers", fun nefarious_markers/0},
 		{"Wallet color quantity", fun color_quantity/0},
 		{"Color aggregate payees", fun color_aggregate/0},
 		{"Encode and Decode marker", fun marker_reverse/0},
@@ -1044,47 +1027,36 @@ color_test_() ->
 %%% Utxo Input Set Generators
 
 outputs_to_inputs(OutputList) ->
-	lists:map(fun(X) ->
-		{Hash, Index} = X#utxop.hash_index,
-		#btxin{txhash=Hash,
-			   txindex=Index,
-			   script=X#utxop.script,
-			   seqnum=0} end, OutputList).
+	lists:map(fun(X) -> lib_test:output_to_input(X) end, OutputList).
 
 colored_inputs(Color) ->
 	outputs_to_inputs(lists:reverse(colored_outputs(Color))).
 
 colored_outputs(Color) ->
-	ets:foldl(fun(Output, Acc) -> 
-					  case lib_color:color(Output) of
-					  	  Color -> [Output|Acc];
+    fakeutxo:foldl(fun(Unspent, Acc) -> 
+					  case lib_color:color(Unspent) of
+					  	  Color -> [Unspent|Acc];
 					  	  _ -> Acc
-		end
-	end, [], fakeutxo).
+					  end
+				   end, []).
 
 %%% Lets mock up outputs
 
 create_marker(Output, QuantList) when is_list(QuantList) ->
 	create_marker(Output, QuantList, "Random meta data").
 create_marker(Output, QuantList, Metadata) when is_list(QuantList) ->
-	Output#btxout{info={openassets, {QuantList, list_to_binary(Metadata)}}}.
+    bblock:replace_script(Output, lib_color:encode_marker(QuantList, list_to_binary(Metadata))).
 
 create_outputs(Num) -> create_outputs(?Uncolored, 0, Num).
 create_outputs(Color, ColorQuant, Num) ->
-	lists:map(fun(X) -> create_output(Color, ColorQuant, X) end,
-		lists:seq(0,Num-1)).
+	lists:map(fun(X) -> create_output(Color, ColorQuant, X) end, lists:seq(0,Num-1)).
 
 create_output() -> create_output(?Uncolored, 0, 0).
-create_output(Color, ColorQuant, Txindex) ->
-	lib_color:set_color(#btxout{txindex=Txindex,
-		    value=50000,
-		    script=crypto:rand_bytes(20),
-		    address=lib_address:address_to_hash160("15MLJpjve5pjPD5aTyK1aBRZ2aW8Vwcwyx")}, Color, ColorQuant).
+create_output(Color, ColorQuant, TxIndex) -> lib_color:set_color(lib_test:create_output(TxIndex), Color, ColorQuant).
 
 %%% Block injection
 %%% Let's inject the colors of the Rainbow!
-fake_colored_block() ->
-	fakeutxo:import().
+fake_colored_block() -> fakeutxo:import().
 
 get_total_quant(ColorList, Color) ->
 	lists:foldl(fun(L,Sum) ->
@@ -1100,11 +1072,13 @@ get_total_quant(ColorList, Color) ->
 
 unspents_to_dict(Utxo) ->
 	lists:foldl(fun(O, Acc) ->
-					dict:store(O#utxop.hash_index, O, Acc)
+					dict:store({lib_unspent:hash(O), lib_unspent:index(O)}, O, Acc)
 				end, dict:new(), Utxo).
 
 inputs_to_unspents(Inputs) ->
 	lists:foldl(fun(I, Acc) ->
-	            {ok, U} = fakeutxo:lookup_tx(I#btxin.txhash, I#btxin.txindex),
-	            dict:store(U#utxop.hash_index, U, Acc)
+	                    Hash = bblock:hash(I),
+	                    Index = bblock:index(I),
+	            {ok, U} = fakeutxo:lookup_tx(Hash, Index),
+	            dict:store({Hash, Index}, U, Acc)
 	    end, dict:new(), Inputs).
