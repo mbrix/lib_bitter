@@ -75,7 +75,7 @@ mixed_list() ->
 	[F|_] = ColorList,
 	?assertMatch({red, 1000}, F),
 	[F2|_] = lists:reverse(ColorList),
-	?assertMatch({blue, 10000}, F2).
+	?assertMatch({blue, 100}, F2).
 
 uncolor_outputs() ->
 	Outputs = [create_output(red, 100, 0),
@@ -102,11 +102,10 @@ single_color_quant() ->
 	Inputs = colored_inputs(red),
 	Unspents = inputs_to_unspents(Inputs),
 	ColorList = lib_color:build_color_list(Inputs, Unspents),
-	%?debugFmt("~p~n", [ColorList]),
 	{Color, NewColorList} = lib_color:get_color_quant(ColorList, 1000),
 	?assertMatch(red, Color),
 	[H|_] = NewColorList,
-	?assertMatch({red, 251}, H).
+	?assertMatch({red, 1000}, H).
 
 partial_quant() ->
 	Inputs = colored_inputs(red),
@@ -124,7 +123,7 @@ multi_partial_quant() ->
 	{Color, NewColorList} = lib_color:get_color_quant(ColorList, 1240),
 	?assertMatch(red, Color),
 	[H|_] = NewColorList,
-	?assertMatch({red, 11}, H).
+	?assertMatch({red, 760}, H).
 
 total_fill_quant() ->
 	Inputs = colored_inputs(red),
@@ -146,13 +145,12 @@ multi_fill_quant() ->
 		ColorList, lists:seq(1,1000)),
 	{_, NewColorList} = lib_color:get_color_quant(FinalList, 1),
 	[H|_] = NewColorList,
-	?assertMatch({red, 250}, H).
+	?assertMatch({red, 999}, H).
 
 multi_color_quant() ->
 	Inputs = colored_inputs(red) ++ colored_inputs(blue),
 	Unspents = inputs_to_unspents(Inputs),
 	ColorList = lib_color:build_color_list(Inputs, Unspents),
-	%?debugFmt("~p~n", [ColorList]),
 	TotalRed = get_total_quant(ColorList, red),
 	TotalBlue = get_total_quant(ColorList, blue),
 	{_, CL2} = lib_color:get_color_quant(ColorList, TotalRed),
@@ -161,8 +159,10 @@ multi_color_quant() ->
 	{Color,CL4} = lib_color:get_color_quant(CL2, 99),
 	[H|_] = CL4,
 	?assertEqual(blue, Color),
-	?assertMatch({blue, 1}, H).
+	?assertMatch({blue, 401}, H).
 
+%% This functionality changed, if we try to request a quantity greater than the
+%% total available quant of a specific color instead of an overflow we should uncolor everything.
 mixed_colors() ->
 	Inputs = colored_inputs(red) ++ colored_inputs(blue),
 	Unspents = inputs_to_unspents(Inputs),
@@ -170,8 +170,19 @@ mixed_colors() ->
 	TotalRed = get_total_quant(ColorList, red),
 	{Color, CL2} = lib_color:get_color_quant(ColorList, TotalRed+2000),
 	?assertEqual(?Uncolored, Color),
-	[H|_]= CL2,
-	?assertEqual({blue, 8600}, H). % Or should list be ?Uncolored?
+	?assertEqual([], CL2).
+	%%[H|_]= CL2,
+	%%?debugFmt("~p~n", [CL2]),
+	%%?assertEqual({blue, 8500}, H). % Or should list be ?Uncolored?
+
+uncolored_overflow() ->
+	Inputs = colored_inputs(red) ++ colored_inputs(?Uncolored) ++ colored_inputs(blue),
+	Unspents = inputs_to_unspents(Inputs),
+	ColorList = lib_color:build_color_list(Inputs, Unspents),
+	%?debugFmt("XXX: ~p~n", [ColorList]),
+	TotalRed = get_total_quant(ColorList, red),
+	{Color, _CL2} = lib_color:get_color_quant(ColorList, TotalRed),
+	?assertEqual(red, Color).
 
 zero_color_quant() ->
 	ColorList = [{red, 1000}],
@@ -895,9 +906,10 @@ bad_type_color() ->
         <<"https://coinprism.blob.core.windows.net/profile/image/3MWCMBTsF3tNzuK3WmvRfpsTVkEZxBmyFQ.jpg">>,
         <<"1.0">>,
         true},
-    B = #color{bin = <<162,242,229,197,141,84,159,165,66,12,
-          127,192,204,5,49,139,47,255,59,251>>},
-    ?assertEqual(A#color.bin, B#color.bin).
+    B = #color{bin = <<162,242,229,197,141,84,159,165,66,12,127,192,204,5,49,139,47,255,59,251>>},
+    AColor = A#color.bin,
+    BColor = B#color.bin,
+    AColor = BColor.
 
 % Demonstrates encoded marker size variation on number of disparate colors encoded
 marker_size() ->
@@ -977,6 +989,7 @@ color_test_() ->
 		{"Multiple small fills", fun multi_fill_quant/0},
 		{"Multiple Color fills", fun multi_color_quant/0},
 		{"Mixed over boundary fill", fun mixed_colors/0},
+	    {"Mixed boundary fill with uncolored components", fun uncolored_overflow/0},
 		{"Single issuance", fun simple_issuance/0},
 		{"Multiple issuance", fun multiple_issuance/0},
 		{"Uncolored issuance", fun uncolored_issuance/0},

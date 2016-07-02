@@ -436,7 +436,7 @@ verify_keypair(Public, Key) when is_record(Key, bip32_pub_key) ->
 verify_keypair(Public, Key) when is_record(Key, bip45_key) ->
 	Public =:= public(Key);
 verify_keypair(Public, Private) ->
-	Msg = crypto:rand_bytes(32),
+	Msg = crypto:strong_rand_bytes(32),
 	try
 		{ok, Signature} = libsecp256k1:ecdsa_sign(Msg, Private, default, <<>>),
 		ok = libsecp256k1:ecdsa_verify(Msg, Signature, Public),

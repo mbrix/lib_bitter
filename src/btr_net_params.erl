@@ -32,6 +32,9 @@
          params/0,
          params/1]).
 
+-export([network/0,
+         genesis_hash/0]).
+
 -include_lib("bitter.hrl").
 
 init(Network) ->
@@ -57,6 +60,11 @@ init(_, _Network, Params) ->
     {ok, Mod, Bin1} = compile:forms([ModForm,ExportForm, FunctionForm]),
     code:load_binary(Mod, [], Bin1),
     ok.
+
+%% Helper functions
+
+network() -> maps:get(network, params()).
+genesis_hash() -> maps:get(genesis_hash, params()).
 
 
 %% Default params

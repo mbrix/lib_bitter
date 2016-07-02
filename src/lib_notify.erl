@@ -100,7 +100,7 @@ random(Mod) ->
     case Pids of 
         {error, _} -> throw(pid_missing);
         [] -> throw(pid_missing);
-         _  -> lists:nth(random:uniform(length(Pids)), Pids)
+         _  -> lists:nth(rand:uniform(length(Pids)), Pids)
     end.
 
 %% Broadcast and messaging functions

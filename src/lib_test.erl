@@ -139,8 +139,8 @@ random_unspent(utxop, Height) ->
     Address = create_random_address(),
 	PubkeyBin = lib_address:hash160(Address),
 	Script = lib_tx:create_script(p2pkh, PubkeyBin),
-    #utxop{hash_index = {crypto:rand_bytes(32), random:uniform(1000)},
-           value = random:uniform(100000000),
+    #utxop{hash_index = {crypto:strong_rand_bytes(32), rand:uniform(1000)},
+           value = rand:uniform(100000000),
            script = Script,
            address = lib_address:hash160(Address),
            info = lib_parse:parse_script(Script),
@@ -151,14 +151,14 @@ random_unspent(utxop, Height) ->
            coinbase = false}.
 
 random_unspent(Height) -> random_unspent(Height,
-                                         crypto:rand_bytes(32),
-                                         random:uniform(1000),
+                                         crypto:strong_rand_bytes(32),
+                                         rand:uniform(1000),
                                          create_random_address()).
 
 random_unspent(Height, Hash, Index, Address) ->
 	PubkeyBin = lib_address:hash160(Address),
 	Script = lib_tx:create_script(p2pkh, PubkeyBin),
-    O = #boutput{data = <<(random:uniform(100000000)):64/little,
+    O = #boutput{data = <<(rand:uniform(100000000)):64/little,
                        (lib_parse:int_to_varint(size(Script)))/binary,
                        Script/binary>>,
              ext = #{index => Index},
@@ -168,7 +168,7 @@ random_unspent(Height, Hash, Index, Address) ->
 random_p2sh_input(Type) ->
 	{Addr, KeyList} = lib_address:generate_p2sh_address(Type),
 	O = create_random_output(Addr),
-	Txhash = crypto:rand_bytes(32),
+	Txhash = crypto:strong_rand_bytes(32),
 	U = output_to_unspent(O, Txhash, bblock:index(O), 1, false),
 	UnspentDict = lib_kd:add(U),
 	I = lib_unspent:create_input(U),
@@ -193,7 +193,7 @@ create_random_p2pkh_input() ->
 	I#btxin{script = lib_tx:create_script(p2pkh, PubkeyBin)}.
 
 create_random_input() ->
-	create_input(crypto:rand_bytes(32), random:uniform(100)).
+	create_input(crypto:strong_rand_bytes(32), rand:uniform(100)).
 
 create_input(Addr) when is_record(Addr, addr) ->
 	I = create_random_p2pkh_input(),
@@ -213,8 +213,8 @@ create_outputs(Num) ->
 
 create_random_output() ->
 	create_output(boutput,
-	              random:uniform(100),
-		          random:uniform(10000000),
+	              rand:uniform(100),
+		          rand:uniform(10000000),
 		          lib_address:hash160(create_random_address())).
 
 create_output() -> create_output(boutput, 0).
@@ -264,21 +264,21 @@ create_random_output(Address) when is_record(Address, addr) ->
 
 create_random_output(Type) ->
 	create_output(Type,
-	              random:uniform(100),
-		          random:uniform(10000000),
+	              rand:uniform(100),
+		          rand:uniform(10000000),
 		          lib_address:hash160(create_random_address())).
 
 
 create_random_output(p2sh, Address) ->
-	create_output(p2sh, random:uniform(100),
-		          random:uniform(10000000),
+	create_output(p2sh, rand:uniform(100),
+		          rand:uniform(10000000),
 				  Address).
 
 create_transaction() ->
 	create_transaction([create_input()], create_outputs(1)).
 
 create_transaction(Inputs, Outputs) ->
-	create_transaction(crypto:rand_bytes(32), Inputs, Outputs).
+	create_transaction(crypto:strong_rand_bytes(32), Inputs, Outputs).
 create_transaction(Txhash, Inputs, Outputs) ->
 		#btxdef{txhash=Txhash,
 		        txversion=2,
@@ -304,7 +304,7 @@ create_block(Network, PreviousHash, Txs, Height) ->
            timestamp = timestamp(),
            difficulty = 1000,
            txdata = Txs,
-           nonce = random:uniform(100000)}.
+           nonce = rand:uniform(100000)}.
 
 create_simple_chain(Network, Iterations, NumOutputs) when is_atom(Network) ->
 	T = create_transaction([create_input()], create_outputs(NumOutputs)),
@@ -324,9 +324,7 @@ create_simple_chain(Block, Network, Iterations, NumOutputs) when is_record(Block
 	%% A is the block after genesis
 	[Block|Acc].
 
-timestamp() ->
-    {Mega, Sec, Micro} = now(),
-    Mega * 1000000 * 1000000 + Sec * 1000000 + Micro.
+timestamp() -> erlang:system_time().
 
 sum_outputs(Txdata) ->
 	Sum = lists:foldl(fun(X, S) -> S + length(X#btxdef.txoutputs) end,

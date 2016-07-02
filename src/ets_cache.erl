@@ -167,17 +167,13 @@ bit_to_int(B) -> 1 bsl B.
 
 %% Group spawn and collect
 %%
-do_spawn(Max, Fun, WorkList) -> do_spawn(0, Max, Fun, WorkList, self(), make_ref(), []).
 
-do_spawn(0, _Max, _Fun, [], _Self, _Ref, Res) -> Res;
-
-do_spawn(Count, Max, Fun, WorkList, Self, Ref, Res) when Count >= Max ->
-    do_spawn(Count-1, Max, Fun, WorkList, Self, Ref, [receive {Ref, R} -> R end|Res]);
-
-do_spawn(Count, Max, Fun, [H|WorkList], Self, Ref, Res) when Count < Max ->
-    spawn(fun() -> Self ! {Ref, Fun(H)} end),
-    do_spawn(Count+1, Max, Fun, WorkList, Self, Ref, Res);
-
-do_spawn(Count, Max, Fun, [], Self, Ref, Res) ->
-    do_spawn(Count-1, Max, Fun, [], Self, Ref, [receive {Ref, R} -> R end|Res]).
-
+%%do_spawn(0, _Max, _Fun, [], _Self, _Ref, Res) -> Res;
+%%
+%%do_spawn(Count, Max, Fun, WorkList, Self, Ref, Res) when Count >= Max ->
+%%    do_spawn(Count-1, Max, Fun, WorkList, Self, Ref, [receive {Ref, R} -> R end|Res]);
+%%
+%%do_spawn(Count, Max, Fun, [H|WorkList], Self, Ref, Res) when Count < Max ->
+%%    spawn(fun() -> Self ! {Ref, Fun(H)} end),
+%%    do_spawn(Count+1, Max, Fun, WorkList, Self, Ref, Res).
+%%

@@ -80,9 +80,9 @@ lexigraphic_order() ->
 
 
 add() ->
-	M = lib_hd:new(crypto:rand_bytes(32)),
-	M2 = lib_hd:pub(lib_hd:new(crypto:rand_bytes(32))),
-	M3 = lib_hd:pub(lib_hd:new(crypto:rand_bytes(32))),
+	M = lib_hd:new(crypto:strong_rand_bytes(32)),
+	M2 = lib_hd:pub(lib_hd:new(crypto:strong_rand_bytes(32))),
+	M3 = lib_hd:pub(lib_hd:new(crypto:strong_rand_bytes(32))),
 	MPM = lib_hdpm:new(M),
 	MPM2 = lib_hdpm:add(MPM, M2),
 	?assertNotEqual(error, MPM2),
@@ -90,8 +90,8 @@ add() ->
 	?assertEqual(3, length(MPM3#bip45_key.cosigner_keys)).
 
 add_same() ->
-	MPM = lib_hdpm:new(crypto:rand_bytes(32)),
-	M2 = lib_hd:pub(lib_hd:new(crypto:rand_bytes(32))),
+	MPM = lib_hdpm:new(crypto:strong_rand_bytes(32)),
+	M2 = lib_hd:pub(lib_hd:new(crypto:strong_rand_bytes(32))),
 	MPM2 = lib_hdpm:add(MPM, M2),
 	MPM3 = lib_hdpm:add(MPM2, M2),
 	?assertEqual(2, length(MPM3#bip45_key.cosigner_keys)).
@@ -106,9 +106,9 @@ co_index() ->
 	?assertEqual(0, lib_hdpm:co_index(M2)).
 
 remove() ->
-	M = lib_hd:new(crypto:rand_bytes(32)),
-	M2 = lib_hd:pub(lib_hd:new(crypto:rand_bytes(32))),
-	M3 = lib_hd:pub(lib_hd:new(crypto:rand_bytes(32))),
+	M = lib_hd:new(crypto:strong_rand_bytes(32)),
+	M2 = lib_hd:pub(lib_hd:new(crypto:strong_rand_bytes(32))),
+	M3 = lib_hd:pub(lib_hd:new(crypto:strong_rand_bytes(32))),
 	MPM = lib_hdpm:new(M),
 	MPM2 = lib_hdpm:add(MPM, M2),
 	MPM3 = lib_hdpm:add(MPM2, M3),
@@ -117,8 +117,8 @@ remove() ->
 	?assertEqual(1, length(MPM5#bip45_key.cosigner_keys)).
 
 locked() ->
-	M = lib_hd:new(crypto:rand_bytes(32)),
-	M2 = lib_hd:pub(lib_hd:new(crypto:rand_bytes(32))),
+	M = lib_hd:new(crypto:strong_rand_bytes(32)),
+	M2 = lib_hd:pub(lib_hd:new(crypto:strong_rand_bytes(32))),
 	MPM = lib_hdpm:new(M),
 	MPM2 = lib_hdpm:lock(MPM),
 	?assertEqual(error, lib_hdpm:add(MPM2, M2)),
@@ -126,9 +126,9 @@ locked() ->
 	?assertNotEqual(error, lib_hdpm:add(MPM3, M2)).
 
 derivation() ->
-	M = lib_hd:new(crypto:rand_bytes(32)),
-	M2 = lib_hd:new(crypto:rand_bytes(32)),
-	M3 = lib_hd:new(crypto:rand_bytes(32)),
+	M = lib_hd:new(crypto:strong_rand_bytes(32)),
+	M2 = lib_hd:new(crypto:strong_rand_bytes(32)),
+	M3 = lib_hd:new(crypto:strong_rand_bytes(32)),
 	MPM = lib_hdpm:new(M),
 	M2PM = lib_hdpm:new(M2),
 	M3PM = lib_hdpm:new(M3),
@@ -142,12 +142,12 @@ derivation() ->
 	?assertEqual(true, is_address(B)).
 
 single() ->
-	MPM = lib_hdpm:new(crypto:rand_bytes(32)),
+	MPM = lib_hdpm:new(crypto:strong_rand_bytes(32)),
 	MPM2 = lib_hdpm:lock(MPM),
 	?assertMatch({_NewKey, _Addr, _Publist}, lib_hdpm:derive(index, MPM2, 0, 0)).
 
 path_check() ->
-	MPM = lib_hdpm:new(crypto:rand_bytes(32)),
+	MPM = lib_hdpm:new(crypto:strong_rand_bytes(32)),
 	P = lib_hd:pub(lib_hdpm:purpose(MPM)),
 	?assertEqual(lib_hd:public(lib_hdpm:purpose(MPM)), lib_hd:public(P)),
 	?assertEqual(lib_hd:public(lib_hd:derive(path, MPM#bip45_key.private,

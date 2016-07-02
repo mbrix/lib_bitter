@@ -370,6 +370,10 @@ get_color_quant(ColorList, Q) ->
 	[{Color, _}|_CT] = ColorList,
 	get_color_quant(Color, ColorList, Q).
 
+%% This should prevent overflow
+%% and terminate coloring when color boundaries are broken
+get_color_quant(?Uncolored, _, Q) when Q > 0 ->
+    {?Uncolored, []};
 get_color_quant(_Color, [], Q) when Q > 0 ->
 	{?Uncolored, []};
 get_color_quant(_, ColorList, 0) ->

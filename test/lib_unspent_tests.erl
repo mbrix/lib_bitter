@@ -39,7 +39,7 @@ stop(_) ->
 	ok.
 
 json_serialization() ->
-    Unspents = lists:map(fun(_) -> lib_test:random_unspent(random:uniform(350000)) end,
+    Unspents = lists:map(fun(_) -> lib_test:random_unspent(rand:uniform(350000)) end,
               lists:seq(1,100)),
     _JsonList = lib_unspent:to_json(btr_net_params:params(), Unspents, 1000000).
 

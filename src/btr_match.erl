@@ -104,7 +104,7 @@ coinbase_fun(Height) ->
 	end.
 
 random_fun(Thresh) ->
-	X = random:uniform(),
+	X = rand:uniform(),
 	fun (_) when X > Thresh -> true;
 		(_) -> false
 	end.

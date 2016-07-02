@@ -45,9 +45,11 @@
 -record(fakeutxo, {hash_index, unspent}).
 
 start() ->
+    ets:new(ordered_fakeutxo, [named_table, ordered_set, {keypos, 1}, {read_concurrency, true}]),
 	ets:new(fakeutxo, [named_table, set, {keypos, 2}, {read_concurrency, true}]).
 
 stop() ->
+    ets:delete(ordered_fakeutxo),
 	ets:delete(fakeutxo).
 
 import() -> import("color_tests1.bin").
@@ -68,26 +70,46 @@ import_tx(TxList) ->
 remove_inputs([]) -> ok;
 remove_inputs(Inputs) ->
 	[I|T] = Inputs, 
-	ets:delete(fakeutxo, {I#btxin.txhash, I#btxin.txindex}),
+	true = ets:delete(fakeutxo, <<(I#btxin.txhash):32/binary, (I#btxin.txindex):32>>),
 	remove_inputs(T).
 
 add_outputs(_, []) -> ok;
 add_outputs(TxHash, Outputs) ->
 	[O|T] = Outputs, 
 	I = bblock:index(O),
-	ets:insert(fakeutxo, #fakeutxo{hash_index = {TxHash,I},
-	                               unspent = lib_test:output_to_unspent(O, TxHash, bblock:index(O), 100, false)}),
+	Unspent = lib_test:output_to_unspent(O, TxHash, bblock:index(O), 100, false),
+	FakeUtxoEntry = #fakeutxo{hash_index = <<TxHash:32/binary, I:32>>,
+	                          unspent = Unspent},
+	true = ets:insert(ordered_fakeutxo, {get_next(), FakeUtxoEntry}), 
+	true = ets:insert(fakeutxo, FakeUtxoEntry),
+	%?debugFmt("ADDING OUTPUT: ~p ~p ~n",[lib_color:color(Unspent), lib_color:quantity(Unspent)]),
 	add_outputs(TxHash, T).
 
 lookup_tx(TxHash, TxIndex) ->
-	case ets:lookup(fakeutxo, {TxHash, TxIndex}) of
+    case ets:lookup(fakeutxo, <<TxHash:32/binary, TxIndex:32>>) of
 		[N] -> {ok, N#fakeutxo.unspent};
 		_ -> notx
 	end.
 
+get_next() -> proplists:get_value(size, ets:info(ordered_fakeutxo)).
+
 foldl(Fun, Acc) ->
-	ets:foldl(fun(Unspent, Acc2) ->  Fun(Unspent#fakeutxo.unspent, Acc2) end, Acc, fakeutxo).
+	ets:foldl(fun({_, Unspent}, Acc2) -> 
+                      case ets:lookup(fakeutxo, Unspent#fakeutxo.hash_index) of
+                          [RealUnspent] -> 
+                              %?debugFmt("INDEX: ~p~n", [Index]),
+                              Fun(RealUnspent#fakeutxo.unspent, Acc2);
+                      [] -> Acc2
+                      end
+                      end, Acc, ordered_fakeutxo).
 
 
-all_unspents() -> lists:map(fun(E) -> E#fakeutxo.unspent end, ets:tab2list(fakeutxo)).
+all_unspents() ->
+    lists:filtermap(fun({_, Unspent}) ->
+                      case ets:lookup(fakeutxo, Unspent#fakeutxo.hash_index) of
+                          [RealUnspent] -> {true, RealUnspent#fakeutxo.unspent};
+                          [] -> false
+                      end
+                      end,
+              ets:tab2list(ordered_fakeutxo)).
 

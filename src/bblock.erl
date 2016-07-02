@@ -414,7 +414,11 @@ hash(#binput{data = <<Txhash:32/binary, _/binary>>}) -> Txhash;
 
 hash(#btxin{txhash = H}) -> H;
 
-hash(#utxop{hash_index = {H,_}}) -> H.
+hash(#utxop{hash_index = {H,_}}) -> H;
+
+hash(SomethingElse) -> io:format("~p ~n ~p~n", [erlang:get_stacktrace(),
+                                                SomethingElse]),
+                       error.
 
 coinbase(#binput{data = <<C:32/binary, _/binary>>}) ->
 	case C of ?COINBASE -> true;

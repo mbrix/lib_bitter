@@ -96,19 +96,6 @@ verify_keypair_compressed() ->
 	CPub = lib_address:compress_key(Pub),
 	?assertEqual(true, lib_address:verify_keypair(CPub, Priv)).
 
-verify_mixed() ->
-	{Pub, Priv} = lib_address:generate_keypair(),
-	CPub = lib_address:compress_key(Pub),
-	Msg = crypto:rand_bytes(32),
-	Msg2 = crypto:hash(sha256, Msg),
-    PrivKey =  {'ECPrivateKey',1,
-    			binary:bin_to_list(Priv),
-                {namedCurve,{1,3,132,0,10}},
-                {0, CPub}},
-	Signature = public_key:sign({digest, Msg2}, sha256, PrivKey),
-	?assertEqual(true, crypto:verify(ecdsa, sha256, Msg, Signature,
-			     [CPub, secp256k1])).
-
 redeemscript() ->
 	{_Addr, [{Pub1, _}, {Pub2, _}]} = lib_address:generate_p2sh_address(p2sh_2of2),
 	RScript = lib_address:p2sh_redeemscript([Pub1, Pub2]),
@@ -170,7 +157,6 @@ address_test_() ->
             {"New style addressing", fun new_addresses/0},
             {"Verify keypair", fun verify_keypair/0},
             {"Verify keypair compressed", fun verify_keypair_compressed/0},
-            {"Verify Mixed encryption", fun verify_mixed/0},
             {"Redeem script", fun redeemscript/0},
             {"Open assets address", fun openasset_address/0},
 		    {"New open assets address", fun openasset_new/0},

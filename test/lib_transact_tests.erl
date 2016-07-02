@@ -88,7 +88,7 @@ outputs_overflow() ->
 	?assert(length(U) < length(Unspents)),
 	?assert(length(S) > 0),
 	?assert(Remaining =:= 0),
-	?assert(O#btxout.value =:= 1321000000).
+	?assert(O#btxout.value =:= 2513989998).
 
 
 outputs_colored() ->

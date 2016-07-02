@@ -81,8 +81,7 @@ sign_tx() ->
     		                  168000-?DEFAULTFEE,
 			lib_address:address_to_hash160("1DNzrK2AgStNgRcqqreGbFZbBR6CUAuE2M")),
     N3 = lib_tx:add_output(N2, O),
-	SignedTx = lib_tx:serialize_btxdef(lib_tx:sign_tx(?SIGHASH_ALL, N3, KeypairDict, dict:new(), UnspentDict)),
-	?assertEqual(SignedTx, SignedTx).
+	lib_tx:serialize_btxdef(lib_tx:sign_tx(?SIGHASH_ALL, N3, KeypairDict, dict:new(), UnspentDict)).
 
 sign_tx_again() ->
 	PrevTx = hex:hexstr_to_bin("010000000126c07ece0bce7cda0ccd14d99e205f118cde27e83dd75da7b141fe487b5528fb000000008b48304502202b7e37831273d74c8b5b1956c23e79acd660635a8d1063d413c50b218eb6bc8a022100a10a3a7b5aaa0f07827207daf81f718f51eeac96695cf1ef9f2020f21a0de02f01410452684bce6797a0a50d028e9632be0c2a7e5031b710972c2a3285520fb29fcd4ecfb5fc2bf86a1e7578e4f8a305eeb341d1c6fc0173e5837e2d3c7b178aade078ffffffff02b06c191e010000001976a9143564a74f9ddb4372301c49154605573d7d1a88fe88ac00e1f505000000001976a914010966776006953d5567439e5e39f86a0d273bee88ac00000000"),
@@ -111,8 +110,7 @@ sign_tx_again() ->
 	?assertEqual(hex:hexstr_to_bin("9302bda273a887cb40c13e02a50b4071a31fd3aae3ae04021b0b843dd61ad18e"),
 		         lib_tx:hash_tx(ITX)),
 	KeypairDict = dict:store(Hash160Public, {Public, Private}, dict:new()),
-	SignedTx = lib_tx:serialize_btxdef(lib_tx:sign_tx(?SIGHASH_ALL, N3, KeypairDict, dict:new(), UnspentDict)),
-	?assertEqual(SignedTx, SignedTx).
+	lib_tx:serialize_btxdef(lib_tx:sign_tx(?SIGHASH_ALL, N3, KeypairDict, dict:new(), UnspentDict)).
 
 
 create_p2sh_to_p2pkh_transaction() ->
