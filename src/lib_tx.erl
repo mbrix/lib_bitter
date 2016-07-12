@@ -67,18 +67,18 @@
 
 % TX Verification
 
-decode_script(p2pkh, <<>>) ->
-	empty_script;
-
-decode_script(p2pkh, Script) when is_binary(Script) ->
-	<<Length:8/little, Rest/binary>> = Script,
-	LengthBits = Length*8,
-	<<Signature:LengthBits/bitstring, Rest2/binary>> = Rest,
-	<<KeyLength:8/little, Rest3/binary>> = Rest2,
-	KeyLengthBits = KeyLength*8,
-	<<PublicKey:KeyLengthBits/bitstring>> = Rest3,
-	{Signature, PublicKey}.
-
+%%decode_script(p2pkh, <<>>) ->
+%%	empty_script;
+%%
+%%decode_script(p2pkh, Script) when is_binary(Script) ->
+%%	<<Length:8/little, Rest/binary>> = Script,
+%%	LengthBits = Length*8,
+%%	<<Signature:LengthBits/bitstring, Rest2/binary>> = Rest,
+%%	<<KeyLength:8/little, Rest3/binary>> = Rest2,
+%%	KeyLengthBits = KeyLength*8,
+%%	<<PublicKey:KeyLengthBits/bitstring>> = Rest3,
+%%	{Signature, PublicKey}.
+%%
 %decode_script(p2sh, Script) when is_binary(Script) ->
 %	ok.
 
@@ -111,55 +111,69 @@ sign_tx(SigHashType, Tx, KeypairDict, Proposals, Unspents) ->
 	Tx#btxdef{txinputs=SignedInputs}.
 
 sign_inputs(SigHashType, Inputs, Tx, KeypairDict, Proposals, Unspents) ->
-	lists:map(fun(I) ->
-                      case dict:find({bblock:hash(I), bblock:index(I)}, Unspents) of
+    {SignedInputs, _} = lists:mapfoldl(fun(I, InputIndex) ->
+	                  case dict:find({bblock:hash(I), bblock:index(I)}, Unspents) of
 		{ok, Unspent} ->
-			case input_type(I) of
-				{unrecognized, Hash160} ->
-					verify_input(unrecognized, SigHashType, Tx, Hash160, I, KeypairDict, Proposals, lib_unspent:script(Unspent));
+			case input_type(Unspent) of
+				{unrecognized, _Hash160} ->
+                    {verify_input(unrecognized, Tx, InputIndex, I, lib_unspent:script(Unspent)), InputIndex+1};
                 {InputType, Hash160} ->
-					sign_input(InputType, SigHashType, Tx, Hash160, I, KeypairDict, Proposals, lib_unspent:script(Unspent));
+                    {sign_input(InputType, SigHashType, Tx, Hash160, I, KeypairDict, Proposals, lib_unspent:script(Unspent)), InputIndex+1};
                 {InputType, _SubType, Hash160} ->
-					sign_input(InputType, SigHashType, Tx, Hash160, I, KeypairDict, Proposals, lib_unspent:script(Unspent))
+                    {sign_input(InputType, SigHashType, Tx, Hash160, I, KeypairDict, Proposals, lib_unspent:script(Unspent)), InputIndex+1}
 				end;
-			_ -> I
+			_ -> {I, InputIndex+1}
 		end
-		end, Inputs).
+		end, 0, Inputs),
+	SignedInputs.
 
 
-verify_input(p2pkh, SigHashType, Tx, _Key, Input, _KeypairDict, _, Script) ->
-	Hash = hash_tx(intermediate_tx(SigHashType, clear_input_scripts(replace_input_script(Tx, Input, Script), Input))),
-    case decode_script(p2pkh, bblock:script(Input)) of
-		{Signature, PublicKey} ->
-            bblock:signed(Input, verify_signature(Hash, Signature, PublicKey));
-		empty_script -> bblock:signed(Input, false)
-	end;
+%% Possibly all of these verifications should be done by libconsensus directly
 
-verify_input(p2sh, SigHashType, Tx, Key, Input, KeypairDict, Proposals, Script) ->
-	{{Info, RedeemScript}, Sigs} = sigs(bblock:script(Input)),
-	Hash = hash_tx(intermediate_tx(SigHashType,
-				clear_input_scripts(replace_input_script(Tx, Input, RedeemScript), Input))),
-	% Iterate over every signature and validate
-	{{M,_N}, Keylist} = Info,
-	ValidSigs = lists:filter(fun(E) ->
-					isvalid(E, Hash, SigHashType, Keylist) end, Sigs),
-	IsSigned = (length(ValidSigs) >= M),
-	I2 = bblock:signed(Input, IsSigned),
-	case IsSigned of
-		true -> I2;
-		false ->
-			% Lets try and  sign it.	
-			sign_input(p2sh, SigHashType, Tx, Key, Input, KeypairDict, Proposals, Script)
-	end.
+verify_input(unrecognized, Tx, InputIndex, I, Script) ->
+    %% This input might have been replaced with the signed version
+    X = serialize_btxdef(Tx),
+    B = bblock:script(bblock:input(bblock:parse_tx(X), InputIndex)),
+    ?debugFmt("UNRECOGNIZED: ~p ~n ~p ~n", [lib_script:pretty(B), lib_script:pretty(Script)]),
+    case libconsensus:verify_script(X, Script, InputIndex, libconsensus:flags(verify_flags_p2sh)) of
+        true -> bblock:signed(I, true);
+        _ -> bblock:signed(I, false)
+    end.
+                                
 
-isvalid(_, _,_,[]) -> false;
-isvalid({Sig, Type}, Hash, SigHashType, KeyList) when Type =:= SigHashType ->
-	[K|R] = KeyList,
-	case verify_signature(Hash, Sig, K) of
-		true -> true;
-		false -> isvalid({Sig, Type}, Hash, SigHashType, R)
-	end;
-isvalid(_,_,_,_) -> false.
+%verify_input(p2pkh, SigHashType, Tx, _Key, Input, _KeypairDict, _, Script) ->
+%	Hash = hash_tx(intermediate_tx(SigHashType, clear_input_scripts(replace_input_script(Tx, Input, Script), Input))),
+%    case decode_script(p2pkh, bblock:script(Input)) of
+%		{Signature, PublicKey} ->
+%            bblock:signed(Input, verify_signature(Hash, Signature, PublicKey));
+%		empty_script -> bblock:signed(Input, false)
+%	end;
+%
+%verify_input(p2sh, SigHashType, Tx, Key, Input, KeypairDict, Proposals, Script) ->
+%	{{Info, RedeemScript}, Sigs} = sigs(bblock:script(Input)),
+%	Hash = hash_tx(intermediate_tx(SigHashType,
+%				clear_input_scripts(replace_input_script(Tx, Input, RedeemScript), Input))),
+%	% Iterate over every signature and validate
+%	{{M,_N}, Keylist} = Info,
+%	ValidSigs = lists:filter(fun(E) ->
+%					isvalid(E, Hash, SigHashType, Keylist) end, Sigs),
+%	IsSigned = (length(ValidSigs) >= M),
+%	I2 = bblock:signed(Input, IsSigned),
+%	case IsSigned of
+%		true -> I2;
+%		false ->
+%			% Lets try and  sign it.	
+%			sign_input(p2sh, SigHashType, Tx, Key, Input, KeypairDict, Proposals, Script)
+%	end.
+
+%isvalid(_, _,_,[]) -> false;
+%isvalid({Sig, Type}, Hash, SigHashType, KeyList) when Type =:= SigHashType ->
+%	[K|R] = KeyList,
+%	case verify_signature(Hash, Sig, K) of
+%		true -> true;
+%		false -> isvalid({Sig, Type}, Hash, SigHashType, R)
+%	end;
+%isvalid(_,_,_,_) -> false.
 
 	
 sign_input(p2pkh, SigHashType, Tx, Key, Input, KeypairDict, _, Script) ->
@@ -169,7 +183,8 @@ sign_input(p2pkh, SigHashType, Tx, Key, Input, KeypairDict, _, Script) ->
 			Signature = create_signature(Hash, PublicKey, PrivateKey),
 			ScriptSig = create_scriptsig(SigHashType, Signature, PublicKey),
 			bblock:signed(bblock:replace_script(Input, ScriptSig), verify_signature(Hash, Signature, PublicKey));
-		error -> Input
+		error -> 
+		    Input
 	end;
 
 sign_input(p2sh, SigHashType, Tx, Address, Input, KeypairDict, Proposals, _) ->
@@ -219,10 +234,8 @@ sign_input(p2sh, SigHashType, Tx, Address, Input, KeypairDict, Proposals, _) ->
 
 is_complete(ScriptSigs) when is_binary(ScriptSigs) ->
 	case binary:match(ScriptSigs, ?MISSINGSIG) of
-		nomatch ->
-			true;
-		_ ->
-			partial
+		nomatch -> true;
+		_ -> partial
 	end.
 
 sigs(<<>>) -> {<<>>, []};
@@ -280,7 +293,7 @@ create_p2sh_scriptsig(SigHashType, Signature) ->
 	SigLength = size(Signature),
 	SigLengthAdjusted = SigLength+1,
 	<<SigLengthAdjusted:8/little,
-	  Signature/bitstring,
+	  Signature/binary,
 	  SigHashType:8/little>>.
 	
 
@@ -289,10 +302,10 @@ create_scriptsig(SigHashType, Signature, PublicKey) ->
 	SigLengthAdjusted = SigLength+1,
 	KeyLength = size(PublicKey),
 	<<SigLengthAdjusted:8/little,
-	  Signature/bitstring,
+	  Signature/binary,
 	  SigHashType:8/little,
 	  KeyLength:8/little,
-	  PublicKey/bitstring>>.
+	  PublicKey/binary>>.
 
 find_proposal(Input, PublicKey, ProposalDict) ->
     case dict:find({bblock:hash(Input), bblock:index(Input), PublicKey},
@@ -308,8 +321,7 @@ get_keypair(Key, KeypairDict) ->
 
 unspent_type(Output) -> lib_parse:parse_script(lib_unspent:script(Output)).
 
-input_type(Input) ->
-	lib_parse:parse_script(bblock:script(Input)).
+input_type(Input) -> lib_parse:parse_script(bblock:script(Input)).
 
 dhash_tx(Tx) when is_record(Tx, btxdef) ->
 	hash_tx(serialize_btxdef(Tx));
@@ -416,9 +428,9 @@ add_output(Tx, Outputs) when is_list(Outputs) ->
 	lists:foldl(fun(E,Acc) -> add_output(Acc, E) end, Tx, Outputs);
 
 add_output(Tx, Output) ->
-	NewOutput = Output#btxout{txindex = Tx#btxdef.outputcount},
+	%NewOutput = Output#btxout{txindex = Tx#btxdef.outputcount},
 	NumOutputs = Tx#btxdef.outputcount + 1,
-	NewOutputs = Tx#btxdef.txoutputs ++ [NewOutput],
+	NewOutputs = Tx#btxdef.txoutputs ++ [Output],
 	Tx#btxdef{outputcount=NumOutputs,
 		      txoutputs=NewOutputs}.
 

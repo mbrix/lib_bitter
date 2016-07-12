@@ -533,7 +533,9 @@ input(#btx{data = <<_:32, D/binary>>=B, offset = O, meta = M}, Index) ->
 	Offset = O + (byte_size(B) - byte_size(InterestingInputStart)),
 	#binput{data = InterestingInputStart,
             offset = Offset,
-			meta = get_meta(Offset, M)}.
+			meta = get_meta(Offset, M)};
+
+input(#btxdef{txinputs = I}, Index) -> lists:nth(Index+1, I).
 
 output(#btx{data = <<_:32, D/binary>>=B, meta = M}, Index) ->
 	Next = read_inputs(D),

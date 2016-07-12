@@ -47,12 +47,15 @@
 %	add(#utxop{hash_index = {I#btxin.txhash, I#btxin.txindex},
 %			script = I#btxin.txindex});
 
-add(U) when is_record(U, utxop) ->
-	dict:store(U#utxop.hash_index, U, dict:new());
+add(U) when is_record(U, us) ->
+    dict:store({lib_unspent:hash(U), lib_unspent:index(U)}, U, dict:new());
+
 add(L) when is_list(L) ->
 	lists:foldl(fun(U,Acc) ->
 				merge(add(U), Acc)
-		end, dict:new(), L).
+		end, dict:new(), L);
+
+add(U) -> dict:store({bblock:hash(U), bblock:index(U)}, U, dict:new()).
 
 add(Hash, O) when is_record(O, btxout) ->
 	add(lib_test:output_to_unspent(Hash, O));
@@ -66,12 +69,10 @@ add(Hash, O, Dict) when is_record(O, btxout) ->
 merge(D, D2) ->
 	dict:merge(fun(k, v1, v2) -> v2 end, D, D2).
 
-get(I, KD) when is_record(I, btxin) ->
-	get(I#btxin.txhash, I#btxin.txindex, KD);
+get(U, KD) when is_record(U, us) ->
+    get(lib_unspent:hash(U), lib_unspent:index(U), KD);
 
-get(U, KD) when is_record(U, utxop) ->
-	{H,I} = U#utxop.hash_index,
-	get(H,I,KD).
+get(I, KD) -> get(bblock:hash(I), bblock:index(I),KD).
 
 get(Hash, O, KD) when is_record(O, btxout) ->
 	get(lib_test:output_to_unspent(Hash, O), KD);

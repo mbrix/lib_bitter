@@ -31,6 +31,7 @@
 
 -export([ops/1,
 		 ops/2,
+		 pretty/1,
 		 eval/1,
 		 eval/2,
 		 eval/4,
@@ -58,21 +59,25 @@ build(ScriptList) ->
 add_pushdata(Bin) -> <<(size(Bin)):8, Bin/bitstring>>.
 
 %% Print
+%%
+
+pretty(Bin) -> lists:map(fun(X) when is_binary(X) -> hex:bin_to_hexstr(X);
+                            (Y) -> Y
+                         end, ops(Bin)).
 
 ops(hex, Bin) -> ops(true, Bin, ?OP_MAP, []).
 
+ops(HexStr) when is_list(HexStr) -> ops(hex:hexstr_to_bin(HexStr));
 ops(Bin) -> ops(false, Bin, ?OP_MAP, []).
 ops(_, <<>>, _OPMap, Ops) -> lists:reverse(Ops);
 
 %% PUSHData Short
 ops(true, <<Op:8, Rest/binary>>, OPMap, Ops) when Op > 0, Op < 76 ->
-	Size = Op*8,
-	<<PushData:Size/bitstring, R2/binary>> = Rest,
+	<<PushData:Op/binary, R2/binary>> = Rest,
 	ops(true, R2, OPMap, [{hex, hex:bin_to_hexstr(PushData)}|Ops]);
 
 ops(Hex, <<Op:8, Rest/binary>>, OPMap, Ops) when Op > 0, Op < 76 ->
-	Size = Op*8,
-	<<PushData:Size/bitstring, R2/binary>> = Rest,
+	<<PushData:Op/binary, R2/binary>> = Rest,
 	ops(Hex, R2, OPMap, [PushData|Ops]);
 
 ops(Hex, <<Op:8, _Rest/binary>>, OPMap, Ops) when Op > 185, Op < 256 ->
@@ -111,15 +116,14 @@ lookup(Op, OPMap, Rest) ->
 
 %% Evaluate
 
-eval(Tx, LookupFun) when is_record(Tx, btxdef) ->
-	eval_inputs(Tx, LookupFun).
+eval(Tx, LookupFun) -> eval_inputs(Tx, LookupFun).
 
-eval_inputs(Tx, LookupFun) -> eval_inputs(Tx, Tx#btxdef.txinputs, LookupFun, 0).
+eval_inputs(Tx, LookupFun) -> eval_inputs(Tx, bblock:inputs(Tx), LookupFun, 0).
 
 eval_inputs(_Tx, [], _LookupFun, _Index) -> true;
 eval_inputs(Tx, [I|Inputs], LookupFun, Index) ->
-	case eval(I#btxin.script,
-			  LookupFun(I#btxin.txhash, I#btxin.txindex), Index, Tx) of
+    case eval(bblock:script(I),
+			  LookupFun(bblock:hash(I), bblock:index(I)), Index, Tx) of
 		true -> eval_inputs(Tx, Inputs, LookupFun, Index+1);
 		false -> false
 	end.

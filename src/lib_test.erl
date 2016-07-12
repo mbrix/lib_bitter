@@ -197,9 +197,10 @@ create_random_input() ->
 
 create_input(Addr) when is_record(Addr, addr) ->
 	I = create_random_p2pkh_input(),
+	Script = lib_address:script(Addr),
 	{#utxop{hash_index={I#btxin.txhash, I#btxin.txindex},
-			script = lib_address:script(Addr)},
-	I}.
+			script = Script},
+	bblock:replace_script(I, Script)}.
 
 create_input() -> create_input(?COINBASE, 0).
 create_input(Txhash, Txindex) ->

@@ -160,8 +160,7 @@ equal(Address, PublicKey, PublicKey2, PublicKey3) ->
 type(Addr) ->
 	Addr#addr.type.
 
-hash160(Addr) ->
-	Addr#addr.bin.
+hash160(Addr) -> Addr#addr.bin.
 
 string_to_bin(S) when is_atom(S) -> S;
 string_to_bin(S) when is_list(S) -> erlang:list_to_binary(S);
